@@ -29,6 +29,7 @@ class KinnectApplication : Application(), Application.ActivityLifecycleCallbacks
 
     override fun onActivityStarted(activity: Activity) {
         Insets.apply(activity)
+        TouchFeedback.install(activity)
         startedActivities++
         inForeground = true
         ExternalLaunch.clear()

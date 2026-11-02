@@ -87,7 +87,17 @@ class VoiceCallActivity : AppCompatActivity() {
         }
 
         override fun onError(err: Int) {
-            runOnUiThread { statusText.text = "Call error ($err)" }
+            // Explain the Agora setup problems people actually hit instead of showing a bare number.
+            val message = when (err) {
+                101 -> "Agora App ID is not valid. Check appId in agora.properties."
+                109, 110 -> "This Agora project needs a token. Create the project in Testing mode (App ID only)."
+                17 -> "Agora refused to join the call. Try again."
+                else -> null
+            }
+            runOnUiThread {
+                statusText.text = message ?: "Call error ($err)"
+                if (message != null) Toast.makeText(this@VoiceCallActivity, message, Toast.LENGTH_LONG).show()
+            }
         }
     }
 
