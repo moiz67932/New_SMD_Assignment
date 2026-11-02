@@ -101,9 +101,8 @@
         ".write": "auth != null && ((!data.exists() && newData.child('authorId').val() === auth.uid) || (data.child('authorId').val() === auth.uid))",
         ".validate": "newData.hasChildren(['authorId', 'createdAt']) && newData.child('authorId').val() === auth.uid && (!newData.child('text').exists() || (newData.child('text').isString() && newData.child('text').val().length <= 2000))",
         "images": {
-          ".validate": "newData.numChildren() <= 10",
           "$index": {
-            ".validate": "newData.isString() && newData.val().matches(/^https:\\/\\//)"
+            ".validate": "$index.matches(/^[0-9]$/) && newData.isString() && newData.val().matches(/^https:\\/\\//)"
           }
         }
       }
@@ -194,9 +193,9 @@
       "$chatId": {
         "members": {
           ".read": "auth != null && (!data.exists() || data.child(auth.uid).val() === true)",
-          ".write": "auth != null && !data.exists() && newData.numChildren() === 2 && newData.child(auth.uid).val() === true && ($chatId.beginsWith(auth.uid + '_') || $chatId.endsWith('_' + auth.uid)) && newData.child($chatId.replace(auth.uid, '').replace('_', '')).val() === true",
+          ".write": "auth != null && !data.exists() && newData.child(auth.uid).val() === true && ($chatId.beginsWith(auth.uid + '_') || $chatId.endsWith('_' + auth.uid)) && newData.child($chatId.replace(auth.uid, '').replace('_', '')).val() === true",
           "$memberUid": {
-            ".validate": "newData.val() === true"
+            ".validate": "newData.val() === true && ($memberUid === auth.uid || $memberUid === $chatId.replace(auth.uid, '').replace('_', ''))"
           }
         },
         "messages": {
