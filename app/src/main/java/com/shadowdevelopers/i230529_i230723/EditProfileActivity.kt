@@ -62,7 +62,7 @@ class EditProfileActivity : AppCompatActivity() {
             websiteInput.setText(text(snapshot, "website"))
             bioInput.setText(text(snapshot, "bio"))
             phoneInput.setText(text(snapshot, "phone"))
-            findViewById<EditText>(R.id.profileEmailValue).setText(text(snapshot, "email"))
+            findViewById<EditText>(R.id.profileEmailValue).setText(text(snapshot, "email").ifBlank { user?.email.orEmpty() })
             findViewById<EditText>(R.id.profileGenderValue).setText(text(snapshot, "gender"))
             showPhoto()
             MediaLoader.load(findViewById(R.id.editCoverImage), coverRef.ifBlank { null })
@@ -82,6 +82,7 @@ class EditProfileActivity : AppCompatActivity() {
             findViewById<View>(id).setOnClickListener { pickImage(PICK_COVER) }
         }
         saveButton.setOnClickListener { save(uid) }
+        Forms.onKeyboardAction(phoneInput) { save(uid) } // Done on the last field = Save
     }
 
     private fun text(snapshot: DataSnapshot, key: String) = snapshot.child(key).getValue(String::class.java).orEmpty()
@@ -130,11 +131,14 @@ class EditProfileActivity : AppCompatActivity() {
         val username = usernameInput.text.toString().trim().removePrefix("@").lowercase()
         val bio = bioInput.text.toString().trim()
         // Same limits as database.rules.json: name 1-60, username 3-30 of a-z 0-9 _ ., bio 1-150.
-        if (name.isBlank() || name.length > 60 || username.length !in 3..30 || !username.matches(Regex("[a-z0-9_.]+")) || bio.isBlank() || bio.length > 150) {
-            Toast.makeText(this, "Enter a name, a username (3-30 letters, digits, _ or .) and a bio", Toast.LENGTH_LONG).show()
-            return
+        when {
+            name.isBlank() -> return run { Forms.error(nameInput, "Enter your name") }
+            username.length !in 3..30 || !username.matches(Regex("[a-z0-9_.]+")) ->
+                return run { Forms.error(usernameInput, "3–30 characters: lowercase letters, numbers, _ or .") }
+            bio.isBlank() -> return run { Forms.error(bioInput, "Write a short bio") }
         }
-        saveButton.isEnabled = false
+        Forms.hideKeyboard(this)
+        Forms.setBusy(saveButton, true, "Saving…")
         if (username == oldUsername) {
             writeProfile(uid, name, username, bio)
             return
@@ -149,8 +153,8 @@ class EditProfileActivity : AppCompatActivity() {
 
             override fun onComplete(error: DatabaseError?, committed: Boolean, currentData: DataSnapshot?) {
                 if (!committed || error != null) {
-                    saveButton.isEnabled = true
-                    Toast.makeText(this@EditProfileActivity, "That username is already taken", Toast.LENGTH_LONG).show()
+                    Forms.setBusy(saveButton, false)
+                    Forms.error(usernameInput, "That username is already taken")
                 } else {
                     writeProfile(uid, name, username, bio)
                 }
@@ -184,14 +188,14 @@ class EditProfileActivity : AppCompatActivity() {
                     Toast.makeText(this, "Profile saved", Toast.LENGTH_SHORT).show()
                     if (firstSetup) Session.startFresh(this, HomeActivity::class.java) else finish()
                 }.addOnFailureListener {
-                    saveButton.isEnabled = true
-                    Toast.makeText(this, it.localizedMessage ?: "Could not publish profile", Toast.LENGTH_LONG).show()
+                    Forms.setBusy(saveButton, false)
+                    Toast.makeText(this, Forms.message(it, "Could not publish profile"), Toast.LENGTH_LONG).show()
                 }
             }
             .addOnFailureListener {
-                saveButton.isEnabled = true
+                Forms.setBusy(saveButton, false)
                 if (oldUsername != username) FirebaseData.usernames.child(username).removeValue()
-                Toast.makeText(this, it.localizedMessage ?: "Could not save profile", Toast.LENGTH_LONG).show()
+                Toast.makeText(this, Forms.message(it, "Could not save profile"), Toast.LENGTH_LONG).show()
             }
     }
 

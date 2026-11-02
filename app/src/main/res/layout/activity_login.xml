@@ -107,16 +107,20 @@
 
         <EditText
             android:id="@+id/emailInput"
+            android:autofillHints="emailAddress"
+            android:imeOptions="actionNext"
             style="@style/Input"
             android:layout_width="match_parent"
             android:layout_height="58dp"
             android:layout_marginTop="20dp"
-            android:hint="Mobile number or email"
+            android:hint="Email"
             android:inputType="textEmailAddress"
             android:text="" />
 
         <EditText
             android:id="@+id/passwordInput"
+            android:autofillHints="password"
+            android:imeOptions="actionDone"
             style="@style/Input"
             android:layout_width="match_parent"
             android:layout_height="58dp"

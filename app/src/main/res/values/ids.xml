@@ -4,4 +4,9 @@
     <item name="insetsApplied" type="id" />
     <!-- AvatarBinder keeps each avatar's original circle drawable here. -->
     <item name="avatarOriginalBackground" type="id" />
+    <!-- TouchFeedback: root already watched / view already has its ripple. -->
+    <item name="touchFeedbackInstalled" type="id" />
+    <item name="touchFeedbackApplied" type="id" />
+    <!-- Forms.setBusy keeps the button's normal label here while it shows "Saving…". -->
+    <item name="formOriginalLabel" type="id" />
 </resources>

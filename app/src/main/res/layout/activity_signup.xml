@@ -90,6 +90,10 @@
 
             <EditText
                 android:id="@+id/firstNameInput"
+                android:maxLength="30"
+                android:autofillHints="personGivenName"
+                android:imeOptions="actionNext"
+                android:inputType="textPersonName|textCapWords"
                 style="@style/Input"
                 android:layout_width="0dp"
                 android:layout_height="match_parent"
@@ -103,6 +107,10 @@
 
             <EditText
                 android:id="@+id/lastNameInput"
+                android:maxLength="30"
+                android:autofillHints="personFamilyName"
+                android:imeOptions="actionNext"
+                android:inputType="textPersonName|textCapWords"
                 style="@style/Input"
                 android:layout_width="0dp"
                 android:layout_height="match_parent"
@@ -232,6 +240,8 @@
 
         <EditText
             android:id="@+id/signupEmailInput"
+            android:autofillHints="emailAddress"
+            android:imeOptions="actionNext"
             style="@style/Input"
             android:layout_width="match_parent"
             android:layout_height="54dp"
@@ -242,6 +252,8 @@
 
         <EditText
             android:id="@+id/signupPasswordInput"
+            android:autofillHints="newPassword"
+            android:imeOptions="actionDone"
             style="@style/Input"
             android:layout_width="match_parent"
             android:layout_height="54dp"
