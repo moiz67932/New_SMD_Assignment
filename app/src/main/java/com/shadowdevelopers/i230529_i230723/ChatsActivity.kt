@@ -74,6 +74,7 @@ class ChatsActivity : AppCompatActivity() {
                 refresh()
             }
         })
+        Forms.onKeyboardAction(findViewById(R.id.chatsSearchInput)) { Forms.hideKeyboard(this) }
         findViewById<View>(R.id.chatsNewButton).setOnClickListener { pickFriend() }
         findViewById<View>(R.id.chatsYourNote).setOnClickListener { Toast.makeText(this, "Notes are not part of this version", Toast.LENGTH_SHORT).show() }
         findViewById<View>(R.id.chatsTabPeople).setOnClickListener { Nav.goTab(this, FriendsActivity::class.java) }
@@ -83,7 +84,7 @@ class ChatsActivity : AppCompatActivity() {
     override fun onStart() {
         super.onStart()
         if (me.isBlank()) return
-        listeners.value(FirebaseData.userChats.child(me), onError = { showEmpty(it.message) }) { snapshot ->
+        listeners.value(FirebaseData.userChats.child(me), onError = { showEmpty(Forms.message(it)) }) { snapshot ->
             val current = snapshot.children.mapNotNull { child -> child.getValue(String::class.java)?.let { child.key.orEmpty() to it } }.toMap()
             perChat.keys.filter { it !in current }.forEach { removeChat(it) }
             current.forEach { (chatId, peer) -> if (chatId !in perChat) listenChat(chatId, peer) }

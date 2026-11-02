@@ -59,7 +59,7 @@ class MarketplaceActivity : AppCompatActivity() {
                 findViewById<TextView>(R.id.marketplaceCount).text = if (items.size == 1) "1 item" else "${items.size} items"
             }
             override fun onCancelled(error: com.google.firebase.database.DatabaseError) {
-                Toast.makeText(this@MarketplaceActivity, error.message, Toast.LENGTH_LONG).show()
+                Toast.makeText(this@MarketplaceActivity, Forms.message(error), Toast.LENGTH_LONG).show()
             }
         }
         itemsListener = observer
@@ -67,7 +67,11 @@ class MarketplaceActivity : AppCompatActivity() {
     }
 
     private fun showAddItemDialog() {
-        val title = EditText(this).apply { hint = "Item name" }
+        val title = EditText(this).apply {
+            hint = "Item name"
+            inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_FLAG_CAP_SENTENCES
+            filters = arrayOf(android.text.InputFilter.LengthFilter(80))
+        }
         val price = EditText(this).apply { hint = "Price"; inputType = InputType.TYPE_CLASS_NUMBER or InputType.TYPE_NUMBER_FLAG_DECIMAL }
         val form = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL

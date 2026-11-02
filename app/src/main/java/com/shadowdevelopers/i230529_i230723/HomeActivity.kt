@@ -106,7 +106,7 @@ class HomeActivity : AppCompatActivity() {
         if (me.isBlank()) return
         feedAdapter.resume()
         Stories.removeExpired(me)
-        listeners.value(FirebaseData.friends.child(me), onError = { feedError = it.message; showFeed() }) { snapshot ->
+        listeners.value(FirebaseData.friends.child(me), onError = { feedError = Forms.message(it); showFeed() }) { snapshot ->
             val friends = snapshot.children.filter { it.getValue(Boolean::class.java) == true }.mapNotNull { it.key }
             setAuthors(listOf(me) + friends.take(MAX_FRIEND_AUTHORS))
             setStoryOwners(listOf(me) + friends.take(MAX_FRIEND_AUTHORS))
@@ -141,7 +141,7 @@ class HomeActivity : AppCompatActivity() {
                 }
 
                 override fun onCancelled(error: DatabaseError) {
-                    feedError = error.message
+                    feedError = Forms.message(error)
                     showFeed()
                 }
             }
@@ -229,7 +229,7 @@ class HomeActivity : AppCompatActivity() {
         findViewById<TextView>(R.id.feedEmpty).apply {
             visibility = if (items.isEmpty()) View.VISIBLE else View.GONE
             text = when {
-                feedError != null -> "Could not load the feed: $feedError"
+                feedError != null -> feedError.orEmpty()
                 !loaded -> "Loading your feed…"
                 else -> "No posts yet. Share something, or add friends to see their posts."
             }

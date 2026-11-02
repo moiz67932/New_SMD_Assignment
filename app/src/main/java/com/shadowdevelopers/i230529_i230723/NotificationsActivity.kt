@@ -87,7 +87,7 @@ class NotificationsActivity : AppCompatActivity() {
         if (previousQuery != null && previous != null) listeners.remove(previousQuery, previous)
         val query = notifications.orderByChild("createdAt").limitToLast(pageSize)
         notificationsQuery = query
-        notificationsListener = listeners.value(query, onError = { Toast.makeText(this, it.message, Toast.LENGTH_LONG).show() }) { snapshot ->
+        notificationsListener = listeners.value(query, onError = { Toast.makeText(this, Forms.message(it), Toast.LENGTH_LONG).show() }) { snapshot ->
             val items = snapshot.children.mapNotNull { item ->
                 val senderId = item.child("senderId").getValue(String::class.java) ?: return@mapNotNull null
                 KinnectNotification(

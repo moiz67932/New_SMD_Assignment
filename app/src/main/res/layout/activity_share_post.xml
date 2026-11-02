@@ -81,6 +81,8 @@
 
     <EditText
         android:id="@+id/shareNoteInput"
+        android:maxLength="500"
+        android:imeOptions="actionDone"
         style="@style/Input"
         android:layout_width="match_parent"
         android:layout_height="48dp"

@@ -54,9 +54,17 @@ class MenuActivity : AppCompatActivity() {
             }
         }
 
-        findViewById<View>(R.id.logoutButton).setOnClickListener {
-            it.isEnabled = false
-            Session.logout(this)
+        // Ask first: logging out by accident is disruptive (HCI: error prevention).
+        findViewById<View>(R.id.logoutButton).setOnClickListener { button ->
+            androidx.appcompat.app.AlertDialog.Builder(this)
+                .setTitle("Log out of Kinnect?")
+                .setMessage("You will need your email and password to log in again.")
+                .setPositiveButton("Log out") { _, _ ->
+                    Forms.setBusy(button, true)
+                    Session.logout(this)
+                }
+                .setNegativeButton("Cancel", null)
+                .show()
         }
     }
 

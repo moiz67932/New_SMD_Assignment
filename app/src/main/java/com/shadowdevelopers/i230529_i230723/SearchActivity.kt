@@ -72,7 +72,9 @@ class SearchActivity : AppCompatActivity() {
                 handler.postDelayed(runSearch, 250)
             }
         })
-        findViewById<View>(R.id.searchClearButton).setOnClickListener { input.text.clear() }
+        findViewById<View>(R.id.searchClearButton).setOnClickListener { input.text.clear(); input.requestFocus() }
+        // Search key: results are already live, so it just closes the keyboard to show them.
+        Forms.onKeyboardAction(input) { Forms.hideKeyboard(this) }
         mapOf(R.id.chipAll to CHIP_ALL, R.id.chipPeople to CHIP_PEOPLE, R.id.chipPosts to CHIP_POSTS, R.id.chipGroups to CHIP_GROUPS, R.id.chipMarketplace to CHIP_MARKET)
             .forEach { (id, value) -> findViewById<View>(id).setOnClickListener { chip = value; styleChips(); search(input.text.toString()) } }
         styleChips()
@@ -203,7 +205,13 @@ class SearchActivity : AppCompatActivity() {
         when (relation) {
             Relation.NONE -> FriendActions.sendRequest(this, me, user.uid)
             Relation.OUTGOING -> FriendActions.cancelRequest(this, me, user.uid)
-            Relation.INCOMING -> FriendActions.confirm(this, me, user.uid)
+            // An incoming request can be confirmed or deleted right here (brief: send / confirm / delete from Search).
+            Relation.INCOMING -> androidx.appcompat.app.AlertDialog.Builder(this)
+                .setTitle("${user.name} sent you a friend request")
+                .setPositiveButton("Confirm") { _, _ -> FriendActions.confirm(this, me, user.uid) }
+                .setNegativeButton("Delete") { _, _ -> FriendActions.deleteIncoming(this, me, user.uid) }
+                .setNeutralButton("Cancel", null)
+                .show()
             else -> startActivity(Intent(this, OtherProfileActivity::class.java).putExtra("person_uid", user.uid))
         }
     }

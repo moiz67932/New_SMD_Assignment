@@ -172,7 +172,7 @@ class ChatActivity : AppCompatActivity() {
             render()
         }
         listeners.value(chat.child("messages").orderByChild("timestamp").limitToLast(200), onError = {
-            Toast.makeText(this, it.message, Toast.LENGTH_LONG).show()
+            Toast.makeText(this, Forms.message(it), Toast.LENGTH_LONG).show()
         }) { snapshot ->
             messages = snapshot.children.mapNotNull { parse(it) }
             render()
@@ -380,7 +380,11 @@ class ChatActivity : AppCompatActivity() {
     private fun tooLate() = Toast.makeText(this, "Messages can only be changed within 5 minutes", Toast.LENGTH_SHORT).show()
 
     private fun editMessage(message: ChatMessage) {
-        val editor = EditText(this).apply { setText(message.text); setSelection(text.length) }
+        val editor = EditText(this).apply {
+            inputType = android.text.InputType.TYPE_CLASS_TEXT or android.text.InputType.TYPE_TEXT_FLAG_CAP_SENTENCES or android.text.InputType.TYPE_TEXT_FLAG_MULTI_LINE
+            setText(message.text)
+            setSelection(text.length)
+        }
         AlertDialog.Builder(this).setTitle("Edit message").setView(editor)
             .setPositiveButton("Save") { _, _ ->
                 val text = editor.text.toString().trim()

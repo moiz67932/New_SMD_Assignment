@@ -55,6 +55,7 @@
 
         <EditText
             android:id="@+id/chatsSearchInput"
+            android:imeOptions="actionSearch"
             style="@style/Body"
             android:layout_width="match_parent"
             android:layout_height="match_parent"

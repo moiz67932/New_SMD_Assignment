@@ -90,7 +90,7 @@ class CommentsActivity : AppCompatActivity() {
             }
         }
         listeners.value(FirebaseData.comments.child(postId).orderByChild("createdAt"), onError = {
-            findViewById<TextView>(R.id.commentsEmpty).apply { visibility = View.VISIBLE; text = it.message }
+            findViewById<TextView>(R.id.commentsEmpty).apply { visibility = View.VISIBLE; text = Forms.message(it) }
         }) { snapshot ->
             comments.clear()
             snapshot.children.mapNotNullTo(comments) { parse(it) }

@@ -161,6 +161,8 @@
 
         <EditText
             android:id="@+id/postTextInput"
+            android:maxLength="2000"
+            android:inputType="textCapSentences|textMultiLine"
             android:layout_width="match_parent"
             android:layout_height="150dp"
             android:background="@color/white"
