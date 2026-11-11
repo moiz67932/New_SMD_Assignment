@@ -184,6 +184,8 @@
                     android:layout_height="42dp"
                     android:layout_marginStart="7dp"
                     android:background="@drawable/rounded_soft"
+                    android:id="@+id/profileMoreButton"
+                    android:contentDescription="More"
                     android:padding="11dp"
                     android:src="@drawable/ic_more" />
 
@@ -200,6 +202,7 @@
                     android:layout_height="32dp"
                     android:background="@drawable/rounded_teal_soft"
                     android:gravity="center"
+                    android:id="@+id/profileTabPosts"
                     android:text="Posts"
                     android:textColor="@color/primary"
                     android:textSize="11sp" />
@@ -210,6 +213,7 @@
                     android:layout_height="32dp"
                     android:layout_weight="1"
                     android:gravity="center"
+                    android:id="@+id/profileTabPhotos"
                     android:text="Photos"
                     android:textSize="11sp" />
 
@@ -219,6 +223,7 @@
                     android:layout_height="32dp"
                     android:layout_weight="1"
                     android:gravity="center"
+                    android:id="@+id/profileTabVideos"
                     android:text="Videos"
                     android:textSize="11sp" />
 
@@ -228,6 +233,7 @@
                     android:layout_height="32dp"
                     android:layout_weight="1"
                     android:gravity="center"
+                    android:id="@+id/profileTabGroups"
                     android:text="Groups"
                     android:textSize="11sp" />
 

@@ -9,6 +9,7 @@ import android.view.SurfaceView
 import android.view.View
 import android.widget.FrameLayout
 import android.widget.ImageView
+import android.widget.LinearLayout
 import android.widget.TextView
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
@@ -120,6 +121,10 @@ class VoiceCallActivity : AppCompatActivity() {
             finish()
             return
         }
+        // A small heart next to the name when this person is on my Close friends list.
+        Stories.closeFriends.child(me).child(peerUid).get().addOnSuccessListener {
+            if (it.exists()) findViewById<View>(R.id.callFavorite).visibility = View.VISIBLE
+        }
         ProfileCache.get(peerUid) { profile ->
             findViewById<TextView>(R.id.callName).text = profile.name
             AvatarBinder.bind(findViewById(R.id.callAvatar), profile.name, profile.photo, cornerRadiusDp = 28f)
@@ -137,7 +142,8 @@ class VoiceCallActivity : AppCompatActivity() {
                 contentDescription = "Turn camera off"
                 setOnClickListener { toggleCamera() }
             } else {
-                setOnClickListener { Toast.makeText(this@VoiceCallActivity, "The keypad is not part of this version", Toast.LENGTH_SHORT).show() }
+                contentDescription = "Keypad"
+                setOnClickListener { showKeypad() }
             }
         }
         statusText.text = if (incoming) "Connecting…" else "Calling…"
@@ -265,6 +271,37 @@ class VoiceCallActivity : AppCompatActivity() {
         historyWritten = true
         val text = CallManager.summary(videoCall, status, duration)
         ChatSender.send(this, me, peerUid, type = "call", text = text, preview = text, fields = mapOf("callId" to callId))
+    }
+
+    /** Keypad: a dial pad that plays the key tones and shows the digits typed (they stay on this phone). */
+    private fun showKeypad() {
+        val digits = StringBuilder()
+        val tones = try { android.media.ToneGenerator(android.media.AudioManager.STREAM_DTMF, 80) } catch (_: Exception) { null }
+        val density = resources.displayMetrics.density
+        val grid = android.widget.GridLayout(this).apply {
+            columnCount = 3
+            val pad = (16 * density).toInt(); setPadding(pad, pad, pad, pad)
+        }
+        val shown = TextView(this).apply { textSize = 24f; gravity = android.view.Gravity.CENTER; setPadding(0, (8 * density).toInt(), 0, (8 * density).toInt()) }
+        val keys = listOf("1" to android.media.ToneGenerator.TONE_DTMF_1, "2" to android.media.ToneGenerator.TONE_DTMF_2, "3" to android.media.ToneGenerator.TONE_DTMF_3,
+            "4" to android.media.ToneGenerator.TONE_DTMF_4, "5" to android.media.ToneGenerator.TONE_DTMF_5, "6" to android.media.ToneGenerator.TONE_DTMF_6,
+            "7" to android.media.ToneGenerator.TONE_DTMF_7, "8" to android.media.ToneGenerator.TONE_DTMF_8, "9" to android.media.ToneGenerator.TONE_DTMF_9,
+            "*" to android.media.ToneGenerator.TONE_DTMF_S, "0" to android.media.ToneGenerator.TONE_DTMF_0, "#" to android.media.ToneGenerator.TONE_DTMF_P)
+        keys.forEach { (label, tone) ->
+            grid.addView(android.widget.Button(this).apply {
+                text = label
+                textSize = 20f
+                setOnClickListener {
+                    digits.append(label)
+                    shown.text = digits
+                    tones?.startTone(tone, 120)
+                }
+            }, android.widget.GridLayout.LayoutParams().apply { width = (76 * density).toInt(); height = (60 * density).toInt() })
+        }
+        val box = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; gravity = android.view.Gravity.CENTER_HORIZONTAL; addView(shown); addView(grid) }
+        androidx.appcompat.app.AlertDialog.Builder(this).setTitle("Keypad").setView(box)
+            .setPositiveButton("Close", null)
+            .setOnDismissListener { tones?.release() }.show()
     }
 
     private fun toggleMute() {

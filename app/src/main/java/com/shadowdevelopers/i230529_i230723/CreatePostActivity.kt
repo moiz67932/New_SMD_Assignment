@@ -28,6 +28,11 @@ class CreatePostActivity : AppCompatActivity() {
     private val selected = mutableListOf<Uri>()
     private var background = ""
     private var publishing = false
+    private val tagged = linkedMapOf<String, String>() // friend uid -> name
+    private var nameShown = ""
+    private var feeling = ""
+    private var location = ""
+    private var event = ""
     private lateinit var textInput: EditText
     private lateinit var mediaAdapter: SelectedAdapter
 
@@ -39,6 +44,7 @@ class CreatePostActivity : AppCompatActivity() {
 
         FirebaseAuth.getInstance().currentUser?.uid?.let { uid ->
             ProfileCache.get(uid) { profile ->
+                nameShown = profile.name
                 findViewById<TextView>(R.id.createPostName).text = profile.name
                 AvatarBinder.bind(findViewById(R.id.createPostAvatar), profile.name, profile.photo)
             }
@@ -55,12 +61,58 @@ class CreatePostActivity : AppCompatActivity() {
         findViewById<View>(R.id.cameraButton).setOnClickListener {
             startActivityForResult(Intent(this, CameraActivity::class.java).putExtra("for_post", true), REQUEST_CAMERA)
         }
-        listOf(R.id.tagPeopleButton, R.id.feelingButton, R.id.checkInButton, R.id.liveVideoButton, R.id.createEventButton).forEach { id ->
-            findViewById<View>(id).setOnClickListener { Toast.makeText(this, "This option is not part of this version", Toast.LENGTH_SHORT).show() }
+        findViewById<View>(R.id.tagPeopleButton).setOnClickListener {
+            FriendPicker.multi(this, "Tag friends", tagged.keys) { picked ->
+                tagged.clear()
+                picked.forEach { tagged[it.first] = it.second }
+                showDetails()
+            }
+        }
+        findViewById<View>(R.id.feelingButton).setOnClickListener { chooseFeeling() }
+        findViewById<View>(R.id.checkInButton).setOnClickListener { askText("Check in", "Where are you?", location) { location = it } }
+        findViewById<View>(R.id.createEventButton).setOnClickListener { askText("Create event", "Event name and date, e.g. Birthday party, 5 Dec", event) { event = it } }
+        // Live video: go live now (friends see a LIVE tile on Home).
+        findViewById<View>(R.id.liveVideoButton).setOnClickListener {
+            startActivity(Intent(this, LiveActivity::class.java).putExtra("host", true))
         }
         setupColours()
         findViewById<View>(R.id.publishPostButton).setOnClickListener { publish() }
         showSelection()
+    }
+
+    /** The name line of the card says what was added (for example "with Ali · at Lahore"). */
+    private fun showDetails() {
+        val parts = listOfNotNull(
+            feeling.takeIf { it.isNotBlank() }?.let { "feeling $it" },
+            location.takeIf { it.isNotBlank() }?.let { "at $it" },
+            tagged.values.takeIf { it.isNotEmpty() }?.let { "with ${it.joinToString(", ")}" },
+            event.takeIf { it.isNotBlank() }?.let { "event: $it" }
+        )
+        findViewById<TextView>(R.id.createPostName).text = (nameShown + if (parts.isEmpty()) "" else " — " + parts.joinToString(" · "))
+    }
+
+    private fun chooseFeeling() {
+        val feelings = arrayOf("happy 😊", "excited 🤩", "loved ❤️", "blessed 🙏", "grateful 🤗", "cool 😎", "tired 😴", "sad 😢", "angry 😡", "silly 🤪", "None")
+        androidx.appcompat.app.AlertDialog.Builder(this).setTitle("How are you feeling?")
+            .setItems(feelings) { _, which ->
+                feeling = if (which == feelings.lastIndex) "" else feelings[which]
+                showDetails()
+            }.show()
+    }
+
+    /** One-line text question in a dialog (check-in place, event name). An empty answer clears it. */
+    private fun askText(title: String, hint: String, current: String, onAnswer: (String) -> Unit) {
+        val field = EditText(this).apply {
+            this.hint = hint
+            setText(current)
+            inputType = android.text.InputType.TYPE_CLASS_TEXT or android.text.InputType.TYPE_TEXT_FLAG_CAP_SENTENCES
+            filters = arrayOf(android.text.InputFilter.LengthFilter(60))
+            val pad = (20 * resources.displayMetrics.density).toInt()
+            setPadding(pad, pad, pad, pad)
+        }
+        androidx.appcompat.app.AlertDialog.Builder(this).setTitle(title).setView(field)
+            .setPositiveButton("Done") { _, _ -> onAnswer(field.text.toString().trim()); showDetails() }
+            .setNegativeButton("Cancel", null).show()
     }
 
     private fun openPicker() {
@@ -156,7 +208,7 @@ class CreatePostActivity : AppCompatActivity() {
     private fun writePost(uid: String, text: String, images: List<String>) {
         val postId = FirebaseData.posts.push().key ?: return setPublishing(false)
         ProfileCache.get(uid) { profile ->
-            val post = mapOf<String, Any>(
+            val post = mutableMapOf<String, Any>(
                 "postId" to postId,
                 "authorId" to uid,
                 "authorName" to profile.name,
@@ -166,13 +218,32 @@ class CreatePostActivity : AppCompatActivity() {
                 "background" to if (images.isEmpty()) background else "",
                 "createdAt" to mapOf(".sv" to "timestamp")
             )
+            if (feeling.isNotBlank()) post["feeling"] = feeling
+            if (location.isNotBlank()) post["location"] = location
+            if (event.isNotBlank()) post["event"] = event
+            if (tagged.isNotEmpty()) post["tags"] = tagged.toMap()
             FirebaseData.posts.child(postId).setValue(post)
-                .addOnSuccessListener { finish() }
+                .addOnSuccessListener {
+                    notifyTagged(uid, postId)
+                    finish()
+                }
                 .addOnFailureListener {
                     setPublishing(false)
                     Toast.makeText(this, it.localizedMessage ?: "Could not publish post", Toast.LENGTH_LONG).show()
                 }
         }
+    }
+
+    /** Tagged friends get a notification that opens the post. */
+    private fun notifyTagged(me: String, postId: String) {
+        if (tagged.isEmpty()) return
+        val updates = mutableMapOf<String, Any>()
+        tagged.keys.forEach { friend ->
+            val id = FirebaseData.database.getReference("notifications").child(friend).push().key ?: return@forEach
+            updates["notifications/$friend/$id"] = mapOf("senderId" to me, "type" to "tag", "body" to "tagged you in a post", "postId" to postId,
+                "createdAt" to mapOf(".sv" to "timestamp"), "read" to false)
+        }
+        FirebaseData.database.reference.updateChildren(updates)
     }
 
     private fun setPublishing(active: Boolean) {

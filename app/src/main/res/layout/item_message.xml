@@ -138,6 +138,39 @@
 
                     </LinearLayout>
 
+                    <!-- Voice message: play button + length. -->
+                    <LinearLayout
+                        android:id="@+id/messageAudio"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="2dp"
+                        android:background="@drawable/rounded_soft"
+                        android:gravity="center_vertical"
+                        android:minWidth="170dp"
+                        android:orientation="horizontal"
+                        android:padding="9dp"
+                        android:visibility="gone">
+
+                        <ImageView
+                            android:id="@+id/messageAudioPlay"
+                            android:layout_width="38dp"
+                            android:layout_height="38dp"
+                            android:background="@drawable/circle_teal"
+                            android:contentDescription="Play voice message"
+                            android:padding="8dp"
+                            android:src="@drawable/ic_play" />
+
+                        <TextView
+                            android:id="@+id/messageAudioLabel"
+                            style="@style/Body"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:layout_marginStart="10dp"
+                            android:text="Voice message"
+                            android:textSize="13sp" />
+
+                    </LinearLayout>
+
                     <ImageView
                         android:id="@+id/messageImage"
                         android:layout_width="220dp"

@@ -54,6 +54,17 @@ class ChatActivity : AppCompatActivity() {
     private lateinit var messageAdapter: MessageAdapter
     private lateinit var recycler: RecyclerView
     private val screenshotDetector by lazy { ScreenshotDetector(this) { reportScreenshot() } }
+    private var recorder: android.media.MediaRecorder? = null
+    private var voiceFile: java.io.File? = null
+    private var voiceStartedAt = 0L
+    private val voiceClock = object : Runnable {
+        override fun run() {
+            if (recorder == null) return
+            val seconds = ((System.currentTimeMillis() - voiceStartedAt) / 1000).toInt()
+            findViewById<TextView>(R.id.chatRecordTime).text = "● Recording ${TimeFormat.duration(seconds)} · tap the mic to send"
+            handler.postDelayed(this, 500)
+        }
+    }
 
     private val chat get() = FirebaseData.database.getReference("chats").child(chatId)
 
@@ -77,17 +88,20 @@ class ChatActivity : AppCompatActivity() {
         findViewById<View>(R.id.chatInfoButton).setOnClickListener {
             startActivity(Intent(this, OtherProfileActivity::class.java).putExtra("person_uid", otherUid))
         }
-        // + and the gallery icon open the photo picker; the camera icon takes a photo with the system camera.
+        // + and the gallery icon open the picker (photos and short videos); the camera icon takes a photo.
         listOf(R.id.chatAttachmentButton, R.id.chatImageButton).forEach { viewId ->
             findViewById<View>(viewId).setOnClickListener {
-                startActivityForResult(Intent(this, PhotoPickerActivity::class.java).putExtra("images_only", true).putExtra("single", true), PICK_IMAGE)
+                startActivityForResult(Intent(this, PhotoPickerActivity::class.java).putExtra("single", true), PICK_IMAGE)
             }
         }
         findViewById<View>(R.id.chatCameraButton).setOnClickListener {
             startActivityForResult(Intent(this, CameraActivity::class.java).putExtra("for_post", true), TAKE_PHOTO)
         }
-        findViewById<View>(R.id.chatVoiceButton).setOnClickListener {
-            Toast.makeText(this, "Voice messages are not part of this version", Toast.LENGTH_SHORT).show()
+        // Voice message: tap the mic to start, tap it again to send (the x cancels).
+        findViewById<View>(R.id.chatVoiceButton).setOnClickListener { if (recorder == null) startVoice() else sendVoice() }
+        findViewById<View>(R.id.chatRecordCancel).setOnClickListener { cancelVoice() }
+        findViewById<View>(R.id.chatEmojiButton).setOnClickListener {
+            EmojiPicker.show(this) { emoji -> input.append(emoji) }
         }
         input.addTextChangedListener(object : TextWatcher {
             override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) = Unit
@@ -142,6 +156,8 @@ class ChatActivity : AppCompatActivity() {
     }
 
     override fun onStop() {
+        cancelVoice()
+        AudioPlayer.stop()
         started = false
         setTyping(false)
         listeners.removeAll()
@@ -206,6 +222,9 @@ class ChatActivity : AppCompatActivity() {
             system = type == "system",
             type = type,
             imageRef = text("imageRef"),
+            videoRef = text("videoRef"),
+            audioRef = text("audioRef"),
+            durationSec = item.child("durationSec").getValue(Int::class.java) ?: 0,
             sharedPostId = text("sharedPostId"),
             sharedAuthorName = text("sharedAuthorName"),
             sharedSnippet = text("sharedSnippet"),
@@ -303,6 +322,8 @@ class ChatActivity : AppCompatActivity() {
     /** How a message reads in the Chats list and in reply quotes. */
     private fun previewOf(message: ChatMessage) = when (message.type) {
         "image" -> "Photo"
+        "video" -> "Video"
+        "audio" -> "Voice message"
         "post" -> "Shared a post"
         else -> message.text
     }
@@ -323,26 +344,111 @@ class ChatActivity : AppCompatActivity() {
     override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
         super.onActivityResult(requestCode, resultCode, data)
         if (resultCode != RESULT_OK || data == null) return
-        val uri = when (requestCode) {
-            PICK_IMAGE -> data.getStringArrayListExtra("media_uris")?.firstOrNull()
-            TAKE_PHOTO -> data.getStringExtra("media_uri")
-            else -> null
-        } ?: return
-        sendImage(android.net.Uri.parse(uri))
+        when (requestCode) {
+            PICK_IMAGE -> {
+                val uri = data.getStringArrayListExtra("media_uris")?.firstOrNull() ?: return
+                val kind = data.getStringArrayListExtra("media_types")?.firstOrNull() ?: MediaUploader.IMAGE
+                sendMedia(android.net.Uri.parse(uri), kind)
+            }
+            TAKE_PHOTO -> data.getStringExtra("media_uri")?.let { sendMedia(android.net.Uri.parse(it), MediaUploader.IMAGE) }
+        }
     }
 
-    /** Uploads the photo (progress above the input), then sends a message with type "image" and the image URL. */
-    private fun sendImage(uri: android.net.Uri) {
+    /** Uploads a photo or short video (progress above the input), then sends it as an "image" / "video" message. */
+    private fun sendMedia(uri: android.net.Uri, kind: String) {
         val status = findViewById<TextView>(R.id.chatUploadStatus)
+        val label = if (kind == MediaUploader.VIDEO) "video" else "photo"
         status.visibility = View.VISIBLE
-        status.text = "Uploading photo…"
+        status.text = "Uploading $label…"
         val reply = replyingTo
-        MediaUploader.upload(this, uri, MediaUploader.IMAGE,
-            onProgress = { status.text = "Uploading photo · $it%" },
+        MediaUploader.upload(this, uri, kind,
+            onProgress = { status.text = "Uploading $label · $it%" },
             onSuccess = { ref ->
                 status.visibility = View.GONE
-                ChatSender.send(this, me, otherUid, type = "image", text = "", preview = "Photo", fields = replyFields(reply) + ("imageRef" to ref))
+                val video = kind == MediaUploader.VIDEO
+                ChatSender.send(this, me, otherUid, type = if (video) "video" else "image", text = "", preview = if (video) "Video" else "Photo",
+                    fields = replyFields(reply) + ((if (video) "videoRef" else "imageRef") to ref))
                 clearReply()
+            },
+            onError = { message ->
+                status.visibility = View.GONE
+                Toast.makeText(this, message, Toast.LENGTH_LONG).show()
+            })
+    }
+
+    // ----- Voice messages -----
+
+    private fun startVoice() {
+        if (androidx.core.content.ContextCompat.checkSelfPermission(this, android.Manifest.permission.RECORD_AUDIO) != android.content.pm.PackageManager.PERMISSION_GRANTED) {
+            requestPermissions(arrayOf(android.Manifest.permission.RECORD_AUDIO), REQUEST_MIC)
+            return
+        }
+        val file = java.io.File.createTempFile("kinnect_voice_", ".m4a", cacheDir)
+        val rec = if (Build.VERSION.SDK_INT >= 31) android.media.MediaRecorder(this) else @Suppress("DEPRECATION") android.media.MediaRecorder()
+        try {
+            rec.setAudioSource(android.media.MediaRecorder.AudioSource.MIC)
+            rec.setOutputFormat(android.media.MediaRecorder.OutputFormat.MPEG_4)
+            rec.setAudioEncoder(android.media.MediaRecorder.AudioEncoder.AAC)
+            rec.setAudioEncodingBitRate(48_000)
+            rec.setAudioSamplingRate(32_000)
+            rec.setMaxDuration(60_000) // a minute fits easily in the database (about 360 KB)
+            rec.setOutputFile(file.absolutePath)
+            rec.setOnInfoListener { _, what, _ ->
+                if (what == android.media.MediaRecorder.MEDIA_RECORDER_INFO_MAX_DURATION_REACHED) runOnUiThread { sendVoice() }
+            }
+            rec.prepare()
+            rec.start()
+        } catch (error: Exception) {
+            runCatching { rec.release() }
+            Toast.makeText(this, "Could not start recording. Is another app using the microphone?", Toast.LENGTH_LONG).show()
+            return
+        }
+        recorder = rec
+        voiceFile = file
+        voiceStartedAt = System.currentTimeMillis()
+        findViewById<View>(R.id.chatRecordBar).visibility = View.VISIBLE
+        findViewById<ImageView>(R.id.chatVoiceButton).setColorFilter(androidx.core.content.ContextCompat.getColor(this, R.color.red))
+        handler.post(voiceClock)
+    }
+
+    /** Stops the recorder; returns the recording file, or null if it failed or was too short. */
+    private fun stopVoice(): java.io.File? {
+        val rec = recorder ?: return null
+        recorder = null
+        handler.removeCallbacks(voiceClock)
+        findViewById<View>(R.id.chatRecordBar).visibility = View.GONE
+        findViewById<ImageView>(R.id.chatVoiceButton).setColorFilter(androidx.core.content.ContextCompat.getColor(this, R.color.primary))
+        val file = voiceFile
+        voiceFile = null
+        val stopped = runCatching { rec.stop() }.isSuccess // stop() fails when the recording is far too short
+        runCatching { rec.release() }
+        return if (stopped && file != null && file.length() > 0) file else null
+    }
+
+    private fun cancelVoice() {
+        stopVoice()?.delete()
+    }
+
+    private fun sendVoice() {
+        val seconds = ((System.currentTimeMillis() - voiceStartedAt) / 1000).toInt()
+        val file = stopVoice()
+        if (file == null || seconds < 1) {
+            file?.delete()
+            Toast.makeText(this, "Recording was too short. Hold on a little longer.", Toast.LENGTH_SHORT).show()
+            return
+        }
+        val status = findViewById<TextView>(R.id.chatUploadStatus)
+        status.visibility = View.VISIBLE
+        status.text = "Sending voice message…"
+        val reply = replyingTo
+        MediaUploader.upload(this, android.net.Uri.fromFile(file), MediaUploader.AUDIO,
+            onProgress = { status.text = "Sending voice message · $it%" },
+            onSuccess = { ref ->
+                status.visibility = View.GONE
+                ChatSender.send(this, me, otherUid, type = "audio", text = "", preview = "Voice message",
+                    fields = replyFields(reply) + mapOf("audioRef" to ref, "durationSec" to seconds))
+                clearReply()
+                file.delete()
             },
             onError = { message ->
                 status.visibility = View.GONE
@@ -461,6 +567,8 @@ class ChatActivity : AppCompatActivity() {
 
     override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<out String>, grantResults: IntArray) {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults)
+        if (requestCode == REQUEST_MIC && grantResults.firstOrNull() == android.content.pm.PackageManager.PERMISSION_GRANTED) startVoice()
+        else if (requestCode == REQUEST_MIC) Toast.makeText(this, "Allow the microphone to send voice messages", Toast.LENGTH_LONG).show()
         if (requestCode == REQUEST_MEDIA && started) {
             screenshotDetector.stop()
             screenshotDetector.start()
@@ -478,6 +586,7 @@ class ChatActivity : AppCompatActivity() {
         private const val PICK_IMAGE = 840
         private const val TAKE_PHOTO = 841
         private const val REQUEST_MEDIA = 842
+        private const val REQUEST_MIC = 843
         private const val EDIT_WINDOW_MS = 5 * 60 * 1000L
     }
 

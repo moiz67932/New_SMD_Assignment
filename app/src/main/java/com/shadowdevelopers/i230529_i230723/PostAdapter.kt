@@ -18,8 +18,21 @@ data class FeedPost(
     val createdAt: Long,
     val images: List<String> = emptyList(),
     /** Colour card behind a text-only post ("#RRGGBB"), or "" for none. */
-    val background: String = ""
+    val background: String = "",
+    /** Details chosen in Create post: "feeling", "location" (check-in), "event", and tagged friends (uid -> name). */
+    val feeling: String = "",
+    val location: String = "",
+    val event: String = "",
+    val tags: Map<String, String> = emptyMap()
 ) {
+    /** One line under the author name: "feeling happy · at Lahore · with Ali, Sara · Event: ...". */
+    fun details(): String = listOfNotNull(
+        feeling.takeIf { it.isNotBlank() }?.let { "is feeling $it" },
+        location.takeIf { it.isNotBlank() }?.let { "at $it" },
+        tags.values.takeIf { it.isNotEmpty() }?.let { "with ${it.joinToString(", ")}" },
+        event.takeIf { it.isNotBlank() }?.let { "Event: $it" }
+    ).joinToString(" · ")
+
     companion object {
         /** posts/{postId} -> FeedPost. images is stored as an ordered list (0, 1, 2 ...). */
         fun from(snapshot: DataSnapshot) = FeedPost(
@@ -29,7 +42,11 @@ data class FeedPost(
             text = snapshot.child("text").getValue(String::class.java).orEmpty(),
             createdAt = snapshot.child("createdAt").getValue(Long::class.java) ?: 0L,
             images = snapshot.child("images").children.mapNotNull { it.getValue(String::class.java) },
-            background = snapshot.child("background").getValue(String::class.java).orEmpty()
+            background = snapshot.child("background").getValue(String::class.java).orEmpty(),
+            feeling = snapshot.child("feeling").getValue(String::class.java).orEmpty(),
+            location = snapshot.child("location").getValue(String::class.java).orEmpty(),
+            event = snapshot.child("event").getValue(String::class.java).orEmpty(),
+            tags = snapshot.child("tags").children.mapNotNull { c -> c.key?.let { k -> k to (c.getValue(String::class.java) ?: "") } }.toMap()
         )
     }
 }
@@ -150,7 +167,8 @@ class PostAdapter(
             author.text = post.authorName
             avatar.text = AvatarBinder.initials(post.authorName)
             ProfileCache.get(post.authorId) { if (itemView.tag == post.id) AvatarBinder.bind(avatar, it.name, it.photo) }
-            time.text = "${TimeFormat.ago(post.createdAt)} · Public"
+            val details = post.details()
+            time.text = "${TimeFormat.ago(post.createdAt)} · Public" + if (details.isBlank()) "" else "\n$details"
             bindText(post)
             bindImages(post)
             author.setOnClickListener { onAuthor(post) }
@@ -167,7 +185,30 @@ class PostAdapter(
                 visibility = if (onHide == null) View.GONE else View.VISIBLE
                 setOnClickListener { onHide?.invoke(post) }
             }
-            itemView.findViewById<View>(R.id.postMoreButton).setOnClickListener { onComments(post) }
+            itemView.findViewById<View>(R.id.postMoreButton).setOnClickListener { anchor ->
+                val saved = FirebaseData.database.getReference("saved").child(me).child(post.id)
+                saved.get().addOnSuccessListener { snapshot ->
+                    val isSaved = snapshot.exists()
+                    android.widget.PopupMenu(anchor.context, anchor).apply {
+                        menu.add(0, 1, 0, "Open comments")
+                        menu.add(0, 2, 1, if (isSaved) "Remove from saved" else "Save post")
+                        if (post.authorId == me) menu.add(0, 3, 2, "Delete post")
+                        setOnMenuItemClickListener { item ->
+                            when (item.itemId) {
+                                1 -> onComments(post)
+                                2 -> (if (isSaved) saved.removeValue() else saved.setValue(true)).addOnSuccessListener {
+                                    android.widget.Toast.makeText(anchor.context, if (isSaved) "Removed from saved" else "Saved", android.widget.Toast.LENGTH_SHORT).show()
+                                }
+                                3 -> androidx.appcompat.app.AlertDialog.Builder(anchor.context).setTitle("Delete this post?")
+                                    .setMessage("This cannot be undone.")
+                                    .setPositiveButton("Delete") { _, _ -> FirebaseData.posts.child(post.id).removeValue() }
+                                    .setNegativeButton("Cancel", null).show()
+                            }
+                            true
+                        }
+                    }.show()
+                }.addOnFailureListener { onComments(post) }
+            }
         }
 
         /** A text-only post with a colour shows as a big centred card, like Create post's colour picker. */

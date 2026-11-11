@@ -125,6 +125,34 @@
         android:paddingBottom="4dp"
         android:paddingHorizontal="5dp">
 
+        <LinearLayout
+            android:id="@+id/chatRecordBar"
+            android:layout_width="match_parent"
+            android:layout_height="40dp"
+            android:gravity="center_vertical"
+            android:paddingHorizontal="10dp"
+            android:visibility="gone">
+
+            <TextView
+                android:id="@+id/chatRecordTime"
+                style="@style/Heading"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:text="● Recording 0:00 · tap the mic to send"
+                android:textColor="@color/red"
+                android:textSize="13sp" />
+
+            <ImageView
+                android:id="@+id/chatRecordCancel"
+                android:layout_width="34dp"
+                android:layout_height="34dp"
+                android:contentDescription="Cancel recording"
+                android:padding="8dp"
+                android:src="@drawable/ic_close" />
+
+        </LinearLayout>
+
         <TextView
             android:id="@+id/chatUploadStatus"
             style="@style/Meta"
@@ -222,8 +250,11 @@
                 android:textSize="12sp" />
 
             <ImageView
-                android:layout_width="22dp"
-                android:layout_height="22dp"
+                android:id="@+id/chatEmojiButton"
+                android:layout_width="30dp"
+                android:layout_height="30dp"
+                android:contentDescription="Emoji"
+                android:padding="4dp"
                 android:src="@drawable/ic_smile"
                 android:tint="@color/primary" />
 

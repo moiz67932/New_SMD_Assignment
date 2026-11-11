@@ -2,7 +2,7 @@
 
 CS 4039 Software for Mobile Devices, Assignment 2: "Kinnect Backend with Firebase".
 Kotlin, one Activity per screen, Firebase Authentication + Realtime Database + Cloud Messaging, Agora for calls,
-Cloudinary (unsigned upload preset) for photos and videos.
+photos and short videos are stored inside the Realtime Database as base64 (no extra account needed).
 
 - Project name: `i230529_i230723`
 - Package / applicationId: `com.shadowdevelopers.i230529_i230723`
@@ -10,13 +10,12 @@ Cloudinary (unsigned upload preset) for photos and videos.
 
 ## Setup
 
-Nothing secret is in this repository. Each of these files is git-ignored and must be created on your machine.
+Nothing secret is in this repository. Each of these files is git-ignored and must be created on your machine. Photos need no setup: they are saved in the database itself.
 
 | File | Where it comes from |
 |---|---|
 | `app/google-services.json` | Firebase console > Project settings > Your apps > Android app with package **com.shadowdevelopers.i230529_i230723** > download |
 | `agora.properties` (repo root) | copy `agora.properties.example`; `appId=` from an Agora project in **Testing mode (App ID only)** |
-| `media.properties` (repo root) | copy `media.properties.example`; Cloudinary cloud name + an **unsigned** upload preset |
 | `fcm-server/serviceAccountKey.json` and `fcm-server/.env` | see `fcm-server/README.md` |
 
 Firebase console, once:
@@ -78,6 +77,8 @@ Every feature below compiles and still needs a device test.
 | Search by username or name as you type | 13 |
 | Online / offline, "Active now", "Active 5m ago" | 20, 21 |
 | Screenshot alert (system message + notification) | 21 |
+| Live video (host + viewers, LIVE tile on Home), Notes, Groups with chat, Saved, Events, Memories, Highlights | new |
+| Voice and video messages, emoji picker, story music / filters / tags / stickers, post feelings / check-in / tags / events | 07, 09, 10, 21 |
 | Two Espresso tests | (tests) |
 
 More detail: `docs/CODE_GUIDE.md` (how each feature works and viva questions), `docs/DEMO_SCRIPT.md`,
@@ -85,10 +86,12 @@ More detail: `docs/CODE_GUIDE.md` (how each feature works and viva questions), `
 
 ## Known limitations
 
-- The Camera screen uses the phone's camera app (there is no live viewfinder inside Kinnect). TEXT / LIVE / BOOMERANG modes, flash and effects are design-only.
+- The Camera screen is a live CameraX viewfinder (photo, hold for video, flash, front/back, timer, grid, filters, TEXT / LIVE / BOOMERANG). Videos are kept short (about 8 s) because they are stored in the database.
 - Calls have no foreground service: audio may stop if the app stays in the background for a long time during a call.
   On Android 14+ the full-screen ringing screen needs the "full-screen notifications" permission; otherwise a heads-up notification is shown.
 - Screenshot detection is reliable on Android 14+ (system API). On older versions it is best effort (it watches new images named "screenshot") and needs gallery permission.
 - Pushes only arrive while `fcm-server` is running.
 - Posts are readable by every signed-in user at the database level (the feed shows only friends); see `docs/CODE_GUIDE.md`.
-- Searching posts and groups, notes, highlights, voice messages and the call keypad are not part of this version (the app says so when tapped).
+- Photos, videos and voice messages live in the Realtime Database as base64 (`media/{id}`), so clips are limited (video 3 MB, audio 2 MB). A production app would use object storage.
+- Live video uses Agora in broadcast mode (same App ID as calls, Testing mode). It was not load-tested.
+- Groups are text chats; group voice/video calls are not included.

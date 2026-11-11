@@ -30,7 +30,11 @@ data class ChatMessage(
     val sharedAuthorName: String = "",
     val sharedSnippet: String = "",
     val sharedImage: String = "",
-    val replyToSenderId: String = ""
+    val replyToSenderId: String = "",
+    /** type "video": a short clip; type "audio": a voice message and its length in seconds */
+    val videoRef: String = "",
+    val audioRef: String = "",
+    val durationSec: Int = 0
 )
 
 /** What the chat list shows: the intro card, a message (with its display flags) or the typing bubble. */
@@ -108,6 +112,9 @@ class MessageAdapter(
         private val quote = view.findViewById<TextView>(R.id.messageReplyText)
         private val text = view.findViewById<TextView>(R.id.messageText)
         private val image = view.findViewById<ImageView>(R.id.messageImage)
+        private val audioBubble = view.findViewById<View>(R.id.messageAudio)
+        private val audioPlay = view.findViewById<ImageView>(R.id.messageAudioPlay)
+        private val audioLabel = view.findViewById<TextView>(R.id.messageAudioLabel)
         private val postCard = view.findViewById<View>(R.id.messagePostCard)
         private val postImage = view.findViewById<ImageView>(R.id.messagePostImage)
         private val heart = view.findViewById<TextView>(R.id.messageHeart)
@@ -150,14 +157,37 @@ class MessageAdapter(
             text.setBackgroundResource(if (mine) R.drawable.rounded_teal else R.drawable.rounded_soft)
             text.setTextColor(ContextCompat.getColor(context, if (mine) R.color.white else R.color.text_primary))
             val isImage = message.type == "image" && message.imageRef.isNotBlank()
+            val isVideo = message.type == "video" && message.videoRef.isNotBlank()
+            val isAudio = message.type == "audio" && message.audioRef.isNotBlank()
             val isPost = message.type == "post" && message.sharedPostId.isNotBlank()
-            text.visibility = if ((isImage || isPost) && message.text.isBlank()) View.GONE else View.VISIBLE
-            image.visibility = if (isImage) View.VISIBLE else View.GONE
+            // The text bubble is only a caption for media; it stays hidden when there is no caption.
+            text.visibility = if ((isImage || isVideo || isAudio || isPost) && message.text.isBlank()) View.GONE else View.VISIBLE
+            image.visibility = if (isImage || isVideo) View.VISIBLE else View.GONE
+            image.foreground = if (isVideo) ContextCompat.getDrawable(context, R.drawable.video_play_overlay) else null
             if (isImage) {
                 MediaLoader.load(image, message.imageRef)
                 image.setOnClickListener {
                     if (!isDoubleTap(message)) context.startActivity(Intent(context, MediaViewerActivity::class.java).putStringArrayListExtra("media_refs", arrayListOf(message.imageRef)))
                 }
+            } else if (isVideo) {
+                MediaLoader.loadVideoThumbnail(image, message.videoRef)
+                image.setOnClickListener {
+                    if (!isDoubleTap(message)) context.startActivity(Intent(context, MediaViewerActivity::class.java)
+                        .putStringArrayListExtra("media_refs", arrayListOf(message.videoRef))
+                        .putStringArrayListExtra("media_types", arrayListOf(MediaUploader.VIDEO)))
+                }
+            }
+            // Voice message: tap the round button to play / stop.
+            audioBubble.visibility = if (isAudio) View.VISIBLE else View.GONE
+            if (isAudio) {
+                val playing = AudioPlayer.playingId == message.id
+                audioBubble.setBackgroundResource(if (mine) R.drawable.rounded_teal else R.drawable.rounded_soft)
+                audioPlay.setImageResource(if (playing) R.drawable.ic_stop else R.drawable.ic_play)
+                audioPlay.setBackgroundResource(if (mine) R.drawable.circle_white else R.drawable.circle_teal)
+                audioPlay.setColorFilter(if (mine) ContextCompat.getColor(context, R.color.primary) else android.graphics.Color.WHITE)
+                audioLabel.setTextColor(ContextCompat.getColor(context, if (mine) R.color.white else R.color.text_primary))
+                audioLabel.text = "Voice message · ${TimeFormat.duration(message.durationSec)}"
+                audioPlay.setOnClickListener { AudioPlayer.toggle(context, message.id, message.audioRef) { notifyDataSetChanged() } }
             }
             bindPostCard(message, isPost)
 
@@ -178,7 +208,7 @@ class MessageAdapter(
             seen.visibility = if (row.seen) View.VISIBLE else View.GONE
             if (row.seen) AvatarBinder.bind(seen, other.name, other.photo)
 
-            listOf(text, postCard, image, heart).forEach { target ->
+            listOf(text, postCard, image, heart, audioBubble).forEach { target ->
                 target.setOnLongClickListener { onLongPress(message); true }
             }
             text.setOnClickListener { isDoubleTap(message) }

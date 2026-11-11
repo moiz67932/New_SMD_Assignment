@@ -1,6 +1,6 @@
 # Live demo script (two phones)
 
-Before the demo: both phones run the same debug build (with `google-services.json`, `agora.properties`, `media.properties`).
+Before the demo: both phones run the same debug build (with `google-services.json`, `agora.properties`).
 `fcm-server` is running on the laptop (`npm start`), and the rules are deployed. Phone **A** = Abdul Sami, phone **B** = Muhammad Moiz.
 Grant notification, microphone, camera and photo permissions when asked.
 

@@ -76,7 +76,7 @@ class ChatsActivity : AppCompatActivity() {
         })
         Forms.onKeyboardAction(findViewById(R.id.chatsSearchInput)) { Forms.hideKeyboard(this) }
         findViewById<View>(R.id.chatsNewButton).setOnClickListener { pickFriend() }
-        findViewById<View>(R.id.chatsYourNote).setOnClickListener { Toast.makeText(this, "Notes are not part of this version", Toast.LENGTH_SHORT).show() }
+        findViewById<View>(R.id.chatsYourNote).setOnClickListener { Notes.show(this) }
         findViewById<View>(R.id.chatsTabPeople).setOnClickListener { Nav.goTab(this, FriendsActivity::class.java) }
         findViewById<View>(R.id.chatsTabStories).setOnClickListener { Nav.goTab(this, HomeActivity::class.java) }
     }

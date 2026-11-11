@@ -11,7 +11,7 @@ All Firebase access goes straight from the screens through the singleton `Fireba
 | `FirebaseData.kt` | References to the database roots, plus `now()` = phone time + server offset | One place for paths; `now()` keeps the 24 h stories and 5 min edits correct even if a phone clock is wrong |
 | `KinnectApplication.kt` | Edge-to-edge insets for every screen, presence (online/offline), the global incoming-call listener | Things that must happen for every Activity |
 | `ListenerBag.kt` | Collects Firebase listeners and removes them all at once | Convention: attach in `onStart`, `removeAll()` in `onStop`, so nothing leaks |
-| `MediaUploader.kt` / `MediaLoader.kt` | Upload a photo/video to Cloudinary (unsigned preset) / show a URL with Glide | The database only stores the returned https URL |
+| `MediaUploader.kt` / `MediaLoader.kt` | Shrinks a photo (1024 px, JPEG) and saves it as base64 text in `media/{id}`; posts, stories, messages and profiles keep only the short reference `db:{id}`. `MediaLoader` fetches and decodes it when a picture is shown (small memory cache). Videos: max 3 MB (about 5-10 s), saved the same way with a thumbnail | The database is the only service needed; lists stay light because they hold references, not pictures |
 | `AvatarBinder.kt` | Draws a profile photo into the existing initials circle | No layout changes needed for photos |
 | `ProfileCache.kt` | Remembers `profiles/{uid}` already loaded | Lists don't re-read the same profile for every row |
 | `FriendState.kt` / `FriendActions.kt` | Live friends + incoming + outgoing requests / every request action as one multi-path update | Same friend button logic on 4 screens |
@@ -104,7 +104,7 @@ Every change to the Realtime Database layout, with the rule that protects it (se
 | `users/{uid}` | added `photo`, `cover`, `website`, `phone` | owner only |
 | `sentRequests/{sender}/{receiver} = timestamp` | new: outgoing requests, so "Requested" shows live without reading other people's request lists | sender writes; receiver may only delete; sender reads |
 | `friends/{a}/{b}` | tightened: can only be **created** while a matching `friendRequests` entry exists (i.e. by Confirm); **either** side can delete both entries (Unfriend) | see rule text |
-| `posts/{postId}` | added `images` (ordered list of Cloudinary URLs), `imageCount`, `background` (colour of a text-only post); stopped writing the always-zero `reactionCount` / `commentCount` (counts come from `postReactions` / `comments`) | author writes, any signed-in user reads (unchanged) |
+| `posts/{postId}` | added `images` (ordered list of `db:` references), `imageCount`, `background` (colour of a text-only post); stopped writing the always-zero `reactionCount` / `commentCount` (counts come from `postReactions` / `comments`) | author writes, any signed-in user reads (unchanged) |
 | `postReactions/{postId}/{uid}` | value must be one of Like, Love, Laugh, Wow, Sad, Angry (one reaction per user per post) | user writes only their own child |
 | `notifications/{uid}/{id}` | new types `reaction` (with `postId`) for reactions on your post | sender creates with its own `senderId` (unchanged) |
 
@@ -134,3 +134,10 @@ decides what to show (me + friends) on the client. Making posts friends-only wou
 | (all) | `.validate` added for field shapes: names ≤ 60, usernames `a-z0-9_.` 3–30, bios ≤ 150, photo/cover/media must be `https://` URLs, post text ≤ 2000 and ≤ 10 images, comment text ≤ 1000, message types `text/image/post/system/call`, notification types listed, presence booleans/numbers, call status values | see `database.rules.json` |
 | `chats/{chatId}/members` | loophole closed: you can only create a chat whose id contains your uid, and the other member must be the other half of the id (nobody can pre-create a chat between two other people) | creator must be one of the two members |
 | `closeFriends/{uid}/{friendUid}` | only real friends can be added | owner only |
+| `media/{mediaId}` | new: `type` image/video, `data` (base64, up to 4.5M chars), `thumb` (video first frame), `owner`, `createdAt`. Other nodes store `db:{mediaId}` (rules accept `https://...` or `db:...` for photo, cover, post images, story `mediaRef`) | any signed-in user reads one media node (not the list); only the owner creates (never overwrites) or deletes |
+| `lives/{hostUid}` (+ `viewers/{uid}`) | live video: `channel`, `hostId`, `hostName`, `startedAt`; removed when the host ends or disconnects | host writes; host and friends read; a friend writes only their own viewer entry |
+| `notes/{uid}` | `text` (60), `expiresAt` | owner writes; owner and friends read |
+| `groups/{id}`, `userGroups/{uid}/{id}`, `groupMessages/{id}/{msg}` | group name, creator, `members`; each member's list; chat lines | members only; the creator writes the member lists once at creation |
+| `saved/{uid}/{postId}`, `highlights/{uid}/{storyId}` | saved posts; stories kept after 24 h | owner (highlights readable by friends) |
+| chat `video` / `audio` messages, story `loop` / `audioRef` / `tags`, post `feeling` / `location` / `event` / `tags` | extra fields on existing nodes | same rules as their parent |
+

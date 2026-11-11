@@ -106,6 +106,47 @@ class SearchActivity : AppCompatActivity() {
             }
     }
 
+    /** Plain rows (a title and a line of text) for post and group results. */
+    private val rowAdapter by lazy {
+        TextRowAdapter { row ->
+            if (chip == CHIP_GROUPS) startActivity(Intent(this, GroupChatActivity::class.java).putExtra("group_id", row.id).putExtra("group_name", row.title))
+            else startActivity(Intent(this, CommentsActivity::class.java).putExtra("post_id", row.id))
+        }
+    }
+
+    /** Groups: only groups I am in (userGroups/{me}), by name. */
+    private fun searchGroups(term: String, run: Int) {
+        val me = FirebaseAuth.getInstance().currentUser?.uid ?: return
+        FirebaseData.database.getReference("userGroups").child(me).get().addOnSuccessListener { snapshot ->
+            if (run != generation) return@addOnSuccessListener
+            val rows = snapshot.children.map { TextRow(it.key.orEmpty(), it.child("name").getValue(String::class.java) ?: "Group", "Tap to open the chat") }
+                .filter { it.title.lowercase().contains(term) }
+            rowAdapter.set(rows)
+            showEmpty(if (rows.isEmpty()) "No group of yours matches \"$term\"" else null)
+        }.addOnFailureListener { if (run == generation) showEmpty(Forms.message(it, "Could not search groups")) }
+    }
+
+    /** Posts: text of my posts and my friends' posts (their latest 30 each). */
+    private fun searchPosts(term: String, run: Int) {
+        val me = FirebaseAuth.getInstance().currentUser?.uid ?: return
+        FirebaseData.friends.child(me).get().addOnSuccessListener { friends ->
+            val authors = listOf(me) + friends.children.filter { it.getValue(Boolean::class.java) == true }.mapNotNull { it.key }
+            val found = mutableListOf<FeedPost>()
+            var left = authors.size
+            authors.forEach { uid ->
+                FirebaseData.posts.orderByChild("authorId").equalTo(uid).limitToLast(30).get().addOnCompleteListener { task ->
+                    if (task.isSuccessful) found += task.result.children.map { FeedPost.from(it) }.filter { it.text.lowercase().contains(term) }
+                    if (--left == 0 && run == generation) {
+                        rowAdapter.set(found.sortedByDescending { it.createdAt }.map {
+                            TextRow(it.id, it.authorName, listOf(TimeFormat.ago(it.createdAt), it.text).joinToString(" · "))
+                        })
+                        showEmpty(if (found.isEmpty()) "No posts match \"$term\"" else null)
+                    }
+                }
+            }
+        }.addOnFailureListener { if (run == generation) showEmpty(Forms.message(it, "Could not search posts")) }
+    }
+
     private fun search(text: String) {
         val term = text.trim().lowercase()
         val run = ++generation
@@ -122,8 +163,8 @@ class SearchActivity : AppCompatActivity() {
         when (chip) {
             CHIP_POSTS, CHIP_GROUPS -> {
                 title.text = if (chip == CHIP_POSTS) "Posts" else "Groups"
-                adapter.setUsers(emptyList())
-                showEmpty(if (chip == CHIP_POSTS) "Searching posts is not part of this version. Try People." else "Groups are not part of this version.")
+                recycler.adapter = rowAdapter
+                if (chip == CHIP_POSTS) searchPosts(term, run) else searchGroups(term, run)
             }
             CHIP_MARKET -> {
                 title.text = "Marketplace"

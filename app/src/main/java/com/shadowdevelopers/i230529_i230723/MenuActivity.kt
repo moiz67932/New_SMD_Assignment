@@ -48,10 +48,15 @@ class MenuActivity : AppCompatActivity() {
                 }
             }.show()
         }
-        listOf(R.id.memoriesShortcut, R.id.savedShortcut, R.id.groupsShortcut, R.id.eventsShortcut, R.id.helpRow, R.id.settingsRow, R.id.alsoFromRow).forEach { id ->
-            findViewById<View>(id).setOnClickListener {
-                android.widget.Toast.makeText(this, "Not part of this version", android.widget.Toast.LENGTH_SHORT).show()
-            }
+        mapOf(R.id.memoriesShortcut to "memories", R.id.savedShortcut to "saved", R.id.groupsShortcut to "groups", R.id.eventsShortcut to "events").forEach { (id, mode) ->
+            findViewById<View>(id).setOnClickListener { startActivity(Intent(this, SimpleListActivity::class.java).putExtra("mode", mode)) }
+        }
+        findViewById<View>(R.id.helpRow).setOnClickListener { showHelp() }
+        findViewById<View>(R.id.settingsRow).setOnClickListener { showSettings() }
+        findViewById<View>(R.id.alsoFromRow).setOnClickListener {
+            androidx.appcompat.app.AlertDialog.Builder(this).setTitle("About Kinnect")
+                .setMessage("Kinnect · version 1.0\nCS 4039 Software for Mobile Devices, Assignment 2.\nBuilt by team Shadow Developers (i230529, i230723).")
+                .setPositiveButton("OK", null).show()
         }
 
         // Ask first: logging out by accident is disruptive (HCI: error prevention).
@@ -76,5 +81,35 @@ class MenuActivity : AppCompatActivity() {
     override fun onStop() {
         badges.stop()
         super.onStop()
+    }
+
+    private fun showHelp() {
+        androidx.appcompat.app.AlertDialog.Builder(this).setTitle("Help")
+            .setMessage("• Post: Home → What's on your mind? You can add photos, tag friends, a feeling, a place or an event.\n" +
+                "• Stories: tap Create story on Home. They disappear after 24 hours. Close friends see the green ones only.\n" +
+                "• Chat: open a friend from Chats. Press the mic for a voice message; you can edit or delete a message for 5 minutes.\n" +
+                "• Calls: the phone and video icons inside a chat.\n" +
+                "• Friends: search a name or username, then Add friend.\n" +
+                "• Live: the LIVE mode in the camera (friends see a red LIVE tile on Home).")
+            .setPositiveButton("OK", null).show()
+    }
+
+    private fun showSettings() {
+        val user = com.google.firebase.auth.FirebaseAuth.getInstance().currentUser
+        val items = arrayOf("Signed in as ${user?.email ?: "unknown"}", "Send a password reset email", "Clear saved media cache", "Edit profile")
+        androidx.appcompat.app.AlertDialog.Builder(this).setTitle("Settings").setItems(items) { _, which ->
+            when (which) {
+                1 -> user?.email?.let { email ->
+                    com.google.firebase.auth.FirebaseAuth.getInstance().sendPasswordResetEmail(email)
+                        .addOnSuccessListener { android.widget.Toast.makeText(this, "Reset email sent to $email", android.widget.Toast.LENGTH_LONG).show() }
+                        .addOnFailureListener { android.widget.Toast.makeText(this, Forms.message(it, "Could not send the email"), android.widget.Toast.LENGTH_LONG).show() }
+                }
+                2 -> {
+                    java.io.File(cacheDir, "media_files").deleteRecursively()
+                    android.widget.Toast.makeText(this, "Cache cleared", android.widget.Toast.LENGTH_SHORT).show()
+                }
+                3 -> startActivity(Intent(this, EditProfileActivity::class.java))
+            }
+        }.setNegativeButton("Close", null).show()
     }
 }
