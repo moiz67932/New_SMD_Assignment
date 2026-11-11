@@ -15,7 +15,7 @@ Nothing secret is in this repository. Each of these files is git-ignored and mus
 | File | Where it comes from |
 |---|---|
 | `app/google-services.json` | Firebase console > Project settings > Your apps > Android app with package **com.shadowdevelopers.i230529_i230723** > download |
-| `agora.properties` (repo root) | copy `agora.properties.example`; `appId=` from an Agora project in **Testing mode (App ID only)** |
+| `agora.properties` (repo root) | copy `agora.properties.example`; `appId=` and, if the Agora project has a Primary Certificate (Secured mode), `appCertificate=`; the app then builds a call token itself. A Testing-mode project needs no certificate |
 | `fcm-server/serviceAccountKey.json` and `fcm-server/.env` | see `fcm-server/README.md` |
 
 Firebase console, once:

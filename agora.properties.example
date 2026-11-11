@@ -1,4 +1,6 @@
 # Copy to agora.properties (git-ignored) and fill in.
-# Agora console > Project > App ID. Use a project in "Testing mode" (App ID only, no certificate),
-# because the app joins with a null token and uses the call id as the channel name.
+# Agora console > Project > App ID.
+# appCertificate: only if the project is "Secured" (has a Primary Certificate). The app then builds a token for each call.
+# A project in Testing mode (App ID only) needs no certificate: leave appCertificate empty.
 appId=YOUR_AGORA_APP_ID
+appCertificate=YOUR_PRIMARY_CERTIFICATE_OR_EMPTY

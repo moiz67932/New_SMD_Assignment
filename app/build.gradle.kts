@@ -27,6 +27,8 @@ android {
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         buildConfigField("String", "AGORA_APP_ID", (agoraProperties.getProperty("appId") ?: "").asBuildConfigString())
+        // Only needed when the Agora project has an App Certificate (Secured mode); calls then use a token made on the phone.
+        buildConfigField("String", "AGORA_APP_CERTIFICATE", (agoraProperties.getProperty("appCertificate") ?: "").asBuildConfigString())
     }
 
     buildTypes {

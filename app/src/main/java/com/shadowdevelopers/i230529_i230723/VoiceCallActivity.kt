@@ -91,7 +91,7 @@ class VoiceCallActivity : AppCompatActivity() {
             // Explain the Agora setup problems people actually hit instead of showing a bare number.
             val message = when (err) {
                 101 -> "Agora App ID is not valid. Check appId in agora.properties."
-                109, 110 -> "This Agora project needs a token. Create the project in Testing mode (App ID only)."
+                109, 110 -> "Agora rejected the call token. Check appId and appCertificate in agora.properties, and that this phone's date and time are correct."
                 17 -> "Agora refused to join the call. Try again."
                 else -> null
             }
@@ -231,7 +231,7 @@ class VoiceCallActivity : AppCompatActivity() {
                 autoSubscribeVideo = videoCall
             }
             rtc.setDefaultAudioRoutetoSpeakerphone(speaker)
-            rtc.joinChannel(null, callId, 0, options)
+            rtc.joinChannel(AgoraToken.forChannel(BuildConfig.AGORA_APP_ID, BuildConfig.AGORA_APP_CERTIFICATE, callId), callId, 0, options)
         } catch (error: Exception) {
             Toast.makeText(this, error.localizedMessage ?: "Could not start the call", Toast.LENGTH_LONG).show()
             hangUp()

@@ -69,7 +69,7 @@ class LiveActivity : AppCompatActivity() {
         override fun onError(err: Int) {
             val message = when (err) {
                 101 -> "Agora App ID is not valid. Check appId in agora.properties."
-                109, 110 -> "This Agora project needs a token. Create the project in Testing mode (App ID only)."
+                109, 110 -> "Agora rejected the call token. Check appId and appCertificate in agora.properties, and that this phone's date and time are correct."
                 else -> null
             }
             if (message != null) runOnUiThread { Toast.makeText(this@LiveActivity, message, Toast.LENGTH_LONG).show() }
@@ -170,7 +170,7 @@ class LiveActivity : AppCompatActivity() {
                 autoSubscribeAudio = !host
                 autoSubscribeVideo = !host
             }
-            rtc.joinChannel(null, channel, 0, options)
+            rtc.joinChannel(AgoraToken.forChannel(BuildConfig.AGORA_APP_ID, BuildConfig.AGORA_APP_CERTIFICATE, channel), channel, 0, options)
         } catch (error: Exception) {
             finishLive(error.localizedMessage ?: "Could not start the live video")
         }
