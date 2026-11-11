@@ -9,4 +9,6 @@
     <item name="touchFeedbackApplied" type="id" />
     <!-- Forms.setBusy keeps the button's normal label here while it shows "Saving…". -->
     <item name="formOriginalLabel" type="id" />
+    <!-- MediaLoader: which media a recycled ImageView is waiting for. -->
+    <item name="mediaRefTag" type="id" />
 </resources>

@@ -10,12 +10,6 @@ val agoraProperties = Properties().apply {
     if (config.exists()) config.inputStream().use { load(it) }
 }
 
-// Cloudinary cloud name + unsigned upload preset (see media.properties.example).
-val mediaProperties = Properties().apply {
-    val config = rootProject.file("media.properties")
-    if (config.exists()) config.inputStream().use { load(it) }
-}
-
 fun String.asBuildConfigString() = "\"${replace("\\", "\\\\").replace("\"", "\\\"")}\""
 
 android {
@@ -33,8 +27,6 @@ android {
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         buildConfigField("String", "AGORA_APP_ID", (agoraProperties.getProperty("appId") ?: "").asBuildConfigString())
-        buildConfigField("String", "MEDIA_CLOUD_NAME", (mediaProperties.getProperty("cloudName") ?: "").asBuildConfigString())
-        buildConfigField("String", "MEDIA_UPLOAD_PRESET", (mediaProperties.getProperty("uploadPreset") ?: "").asBuildConfigString())
     }
 
     buildTypes {
@@ -61,10 +53,16 @@ dependencies {
     implementation(libs.firebase.database)
     implementation(libs.firebase.messaging)
     implementation(libs.agora.rtc)
-    // Glide: loads Cloudinary image URLs into ImageViews and avatars.
+    // Glide: shows pictures (decoded from the database or local files) in ImageViews and avatars.
     implementation(libs.glide)
     // ExifInterface: reads photo rotation so uploads are not sideways.
     implementation(libs.androidx.exifinterface)
+    // CameraX: the live camera preview, photo capture and video recording inside Kinnect's Camera screen.
+    implementation(libs.androidx.camera.core)
+    implementation(libs.androidx.camera.camera2)
+    implementation(libs.androidx.camera.lifecycle)
+    implementation(libs.androidx.camera.view)
+    implementation(libs.androidx.camera.video)
     testImplementation(libs.junit)
     androidTestImplementation(libs.androidx.espresso.core)
     androidTestImplementation(libs.androidx.junit)

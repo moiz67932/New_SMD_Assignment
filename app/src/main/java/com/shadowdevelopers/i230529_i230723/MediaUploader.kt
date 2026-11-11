@@ -9,32 +9,40 @@ import android.net.Uri
 import android.os.Handler
 import android.os.Looper
 import android.provider.OpenableColumns
+import android.util.Base64
 import androidx.exifinterface.media.ExifInterface
-import org.json.JSONObject
+import com.google.firebase.auth.FirebaseAuth
 import java.io.ByteArrayOutputStream
-import java.io.InputStream
-import java.net.HttpURLConnection
-import java.net.URL
 import java.util.concurrent.Executors
 
 /**
- * Uploads one image or video to Cloudinary (unsigned upload preset) and returns its https URL.
- * That URL is the "media ref" the app stores in the Realtime Database. Only this file knows
- * where media lives, so the host could be swapped later without touching the screens.
+ * Saves one photo or short video in the Realtime Database as base64 text, in its own node:
+ *   media/{mediaId} = { type: "image" | "video", data: "<base64>", thumb: "<base64 JPEG, videos only>", owner, createdAt }
+ * and gives back the reference "db:{mediaId}". Posts, stories, messages and profiles store only that short
+ * reference, so their lists stay light; MediaLoader fetches the media node when a picture is actually shown.
+ * No other account or service is needed. Only this file and MediaLoader know where media lives.
+ *
+ * Photos are shrunk (long edge 1024 px, JPEG q70 or lower) to roughly 100-300 KB. Videos are limited to
+ * 3 MB (about 5-10 seconds) and audio to 2 MB, because the database is not made for large files.
  */
 object MediaUploader {
     const val IMAGE = "image"
     const val VIDEO = "video"
-    private const val MAX_IMAGE_EDGE = 1280
-    private const val MAX_VIDEO_MS = 31_000L          // 30 s plus a little tolerance
-    private const val MAX_VIDEO_BYTES = 40L * 1024 * 1024
+    /** Voice messages and story music (small audio clips, up to 2 MB). */
+    const val AUDIO = "audio"
+    private const val MAX_IMAGE_EDGE = 1024
+    private const val MAX_IMAGE_BYTES = 900 * 1024
+    private const val MAX_VIDEO_BYTES = 3L * 1024 * 1024
+    private const val MAX_VIDEO_MS = 31_000L
+    private const val MAX_AUDIO_BYTES = 2L * 1024 * 1024
 
     private val worker = Executors.newFixedThreadPool(2)
     private val main = Handler(Looper.getMainLooper())
 
-    fun isConfigured() = BuildConfig.MEDIA_CLOUD_NAME.isNotBlank() && BuildConfig.MEDIA_UPLOAD_PRESET.isNotBlank()
+    /** Always true now: media is stored in Firebase itself, so there is nothing to configure. */
+    fun isConfigured() = true
 
-    /** Runs on a background thread; every callback is delivered on the main thread. */
+    /** Encodes on a background thread; every callback is delivered on the main thread. */
     fun upload(
         context: Context,
         uri: Uri,
@@ -43,32 +51,41 @@ object MediaUploader {
         onSuccess: (String) -> Unit,
         onError: (String) -> Unit
     ) {
-        if (!isConfigured()) {
-            onError("Media upload is not set up. Add media.properties and rebuild.")
+        val me = FirebaseAuth.getInstance().currentUser?.uid
+        if (me == null) {
+            onError("Please log in again")
             return
         }
         val appContext = context.applicationContext
         worker.execute {
             try {
-                val url = if (kind == VIDEO) {
+                val node = mutableMapOf<String, Any>("type" to kind, "owner" to me, "createdAt" to mapOf(".sv" to "timestamp"))
+                if (kind == VIDEO) {
                     checkVideo(appContext, uri)
-                    val size = fileSize(appContext, uri)
-                    appContext.contentResolver.openInputStream(uri).use { input ->
-                        requireNotNull(input) { "Could not open the video" }
-                        send(VIDEO, input, size, "video.mp4", "video/mp4", onProgress)
-                    }
+                    node["data"] = Base64.encodeToString(readVideo(appContext, uri), Base64.NO_WRAP)
+                    videoThumbnail(appContext, uri)?.let { node["thumb"] = it }
+                } else if (kind == AUDIO) {
+                    node["data"] = Base64.encodeToString(readAudio(appContext, uri), Base64.NO_WRAP)
                 } else {
-                    val jpeg = compressImage(appContext, uri)
-                    send(IMAGE, jpeg.inputStream(), jpeg.size.toLong(), "image.jpg", "image/jpeg", onProgress)
+                    node["data"] = Base64.encodeToString(compressImage(appContext, uri), Base64.NO_WRAP)
                 }
-                main.post { onSuccess(url) }
+                val reference = FirebaseData.database.getReference("media").push()
+                val id = reference.key ?: throw IllegalStateException("Could not create an id for the upload")
+                main.post {
+                    onProgress(50)
+                    reference.setValue(node)
+                        .addOnSuccessListener { onProgress(100); onSuccess(MediaLoader.refFor(id)) }
+                        .addOnFailureListener { onError(Forms.message(it, "Upload failed. Check your connection and try again.")) }
+                }
+            } catch (error: OutOfMemoryError) {
+                main.post { onError("That file is too large to upload") }
             } catch (error: Exception) {
                 main.post { onError(error.message ?: "Upload failed") }
             }
         }
     }
 
-    /** Decodes a small enough bitmap, fixes the EXIF rotation, scales the long edge to 1280 px, JPEG q80. */
+    /** Decodes a small enough bitmap, fixes the EXIF rotation, scales the long edge to 1024 px, then JPEG. */
     private fun compressImage(context: Context, uri: Uri): ByteArray {
         val resolver = context.contentResolver
         val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
@@ -86,7 +103,14 @@ object MediaUploader {
             val matrix = Matrix().apply { postScale(scale, scale); postRotate(rotation.toFloat()) }
             bitmap = Bitmap.createBitmap(bitmap, 0, 0, bitmap.width, bitmap.height, matrix, true)
         }
-        return ByteArrayOutputStream().also { bitmap.compress(Bitmap.CompressFormat.JPEG, 80, it) }.toByteArray()
+        // Lower the quality step by step if a photo is still too big (the database is not meant for big files).
+        var quality = 70
+        var bytes: ByteArray
+        do {
+            bytes = ByteArrayOutputStream().also { bitmap.compress(Bitmap.CompressFormat.JPEG, quality, it) }.toByteArray()
+            quality -= 15
+        } while (bytes.size > MAX_IMAGE_BYTES && quality >= 25)
+        return bytes
     }
 
     private fun checkVideo(context: Context, uri: Uri) {
@@ -98,7 +122,37 @@ object MediaUploader {
         } finally {
             retriever.release()
         }
-        require(fileSize(context, uri) <= MAX_VIDEO_BYTES) { "That video is too large (max 40 MB)" }
+        val size = fileSize(context, uri)
+        require(size <= MAX_VIDEO_BYTES) { "That video is too big to save. Choose a short clip (about 5-10 seconds, under 3 MB)." }
+    }
+
+    private fun readVideo(context: Context, uri: Uri): ByteArray {
+        val bytes = context.contentResolver.openInputStream(uri)?.use { it.readBytes() } ?: throw IllegalArgumentException("Could not read the video")
+        require(bytes.size <= MAX_VIDEO_BYTES) { "That video is too big to save. Choose a short clip (about 5-10 seconds, under 3 MB)." }
+        return bytes
+    }
+
+    private fun readAudio(context: Context, uri: Uri): ByteArray {
+        val bytes = context.contentResolver.openInputStream(uri)?.use { it.readBytes() } ?: throw IllegalArgumentException("Could not read the audio")
+        require(bytes.size <= MAX_AUDIO_BYTES) { "That audio is too big (max 2 MB). Choose a shorter clip." }
+        return bytes
+    }
+
+    /** First frame of a video as a small base64 JPEG (for the story tile on Home). */
+    private fun videoThumbnail(context: Context, uri: Uri): String? {
+        val retriever = MediaMetadataRetriever()
+        return try {
+            retriever.setDataSource(context, uri)
+            val frame = retriever.getFrameAtTime(0) ?: return null
+            val scale = 320f / maxOf(frame.width, frame.height)
+            val small = if (scale < 1f) Bitmap.createScaledBitmap(frame, (frame.width * scale).toInt(), (frame.height * scale).toInt(), true) else frame
+            val out = ByteArrayOutputStream().also { small.compress(Bitmap.CompressFormat.JPEG, 60, it) }.toByteArray()
+            Base64.encodeToString(out, Base64.NO_WRAP)
+        } catch (_: Exception) {
+            null
+        } finally {
+            retriever.release()
+        }
     }
 
     private fun fileSize(context: Context, uri: Uri): Long {
@@ -106,49 +160,5 @@ object MediaUploader {
             if (cursor.moveToFirst() && !cursor.isNull(0)) return cursor.getLong(0)
         }
         return context.contentResolver.openAssetFileDescriptor(uri, "r")?.use { it.length } ?: -1L
-    }
-
-    /** Multipart POST to https://api.cloudinary.com/v1_1/{cloud}/{image|video}/upload. */
-    private fun send(kind: String, data: InputStream, size: Long, fileName: String, mime: String, onProgress: (Int) -> Unit): String {
-        val boundary = "kinnect" + System.currentTimeMillis()
-        val head = ("--$boundary\r\nContent-Disposition: form-data; name=\"upload_preset\"\r\n\r\n${BuildConfig.MEDIA_UPLOAD_PRESET}\r\n" +
-            "--$boundary\r\nContent-Disposition: form-data; name=\"file\"; filename=\"$fileName\"\r\nContent-Type: $mime\r\n\r\n").toByteArray()
-        val tail = "\r\n--$boundary--\r\n".toByteArray()
-        val connection = URL("https://api.cloudinary.com/v1_1/${BuildConfig.MEDIA_CLOUD_NAME}/$kind/upload").openConnection() as HttpURLConnection
-        try {
-            connection.requestMethod = "POST"
-            connection.doOutput = true
-            connection.connectTimeout = 20_000
-            connection.readTimeout = 120_000
-            connection.setRequestProperty("Content-Type", "multipart/form-data; boundary=$boundary")
-            if (size > 0) connection.setFixedLengthStreamingMode(head.size + size + tail.size) else connection.setChunkedStreamingMode(64 * 1024)
-            connection.outputStream.use { out ->
-                out.write(head)
-                val buffer = ByteArray(64 * 1024)
-                var sent = 0L
-                var lastPercent = -1
-                while (true) {
-                    val read = data.read(buffer)
-                    if (read < 0) break
-                    out.write(buffer, 0, read)
-                    sent += read
-                    val percent = if (size > 0) (sent * 100 / size).toInt() else 0
-                    if (percent != lastPercent) {
-                        lastPercent = percent
-                        main.post { onProgress(percent) }
-                    }
-                }
-                out.write(tail)
-            }
-            val ok = connection.responseCode in 200..299
-            val body = (if (ok) connection.inputStream else connection.errorStream)?.bufferedReader()?.use { it.readText() }.orEmpty()
-            if (!ok) {
-                val message = runCatching { JSONObject(body).getJSONObject("error").getString("message") }.getOrNull()
-                throw IllegalStateException(message ?: "Upload failed (${connection.responseCode})")
-            }
-            return JSONObject(body).getString("secure_url")
-        } finally {
-            connection.disconnect()
-        }
     }
 }

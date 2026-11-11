@@ -53,15 +53,25 @@ class MediaViewerActivity : AppCompatActivity() {
             visibility = if (refs.size > 1) View.VISIBLE else View.GONE
         }
         video.stopPlayback()
+        val shown = position
         if (isVideo) {
             image.setImageDrawable(null)
             video.visibility = View.VISIBLE
             video.setMediaController(MediaController(this).also { it.setAnchorView(video) })
-            video.setVideoURI(Uri.parse(refs[index]))
-            video.setOnPreparedListener { it.start() }
+            MediaLoader.videoUri(this, refs[position]) { uri ->
+                if (isDestroyed || index != shown) return@videoUri
+                if (uri == null) { image.setImageResource(R.drawable.media_error); return@videoUri }
+                video.setVideoURI(uri)
+                video.setOnPreparedListener { it.start() }
+            }
         } else {
             video.visibility = View.GONE
-            Glide.with(this).load(refs[index]).error(R.drawable.media_error).fitCenter().into(image)
+            image.setImageDrawable(null)
+            MediaLoader.resolveModel(refs[position]) { model ->
+                if (isDestroyed || index != shown) return@resolveModel
+                if (model == null) image.setImageResource(R.drawable.media_error)
+                else Glide.with(this).load(model).error(R.drawable.media_error).fitCenter().into(image)
+            }
         }
     }
 

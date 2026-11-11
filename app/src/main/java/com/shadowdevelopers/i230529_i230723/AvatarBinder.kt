@@ -21,11 +21,20 @@ object AvatarBinder {
         // Remember the original circle drawable once, so recycled rows can go back to it.
         if (view.getTag(R.id.avatarOriginalBackground) == null) view.setTag(R.id.avatarOriginalBackground, view.background ?: Unit)
         val original = view.getTag(R.id.avatarOriginalBackground) as? Drawable
-        Glide.with(view).clear(view)
+        runCatching { Glide.with(view).clear(view) }
         view.background = original
         view.text = initials(name)
+        view.setTag(R.id.mediaRefTag, photoRef)
         if (photoRef.isNullOrBlank()) return
-        val request = Glide.with(view).asBitmap().load(photoRef)
+        // The photo may be bytes from the database or a URL; load it once we have it (and the row still wants it).
+        MediaLoader.resolveModel(photoRef) { model ->
+            if (model == null || view.getTag(R.id.mediaRefTag) != photoRef) return@resolveModel
+            runCatching { loadInto(view, model, original, name, cornerRadiusDp) }
+        }
+    }
+
+    private fun loadInto(view: TextView, model: Any, original: Drawable?, name: String, cornerRadiusDp: Float?) {
+        val request = Glide.with(view).asBitmap().load(model)
         (if (cornerRadiusDp == null) request.circleCrop() else request.centerCrop()).into(object : CustomViewTarget<TextView, Bitmap>(view) {
             override fun onResourceReady(resource: Bitmap, transition: Transition<in Bitmap>?) {
                 getView().background = RoundedBitmapDrawableFactory.create(getView().resources, resource).apply {
