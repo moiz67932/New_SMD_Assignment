@@ -83,7 +83,8 @@ class StoryViewerActivity : AppCompatActivity() {
 
     private fun onStoryShown(story: Story, index: Int) {
         val audience = if (story.audience == Stories.CLOSE_FRIENDS) "Close friends" else "Public"
-        findViewById<TextView>(R.id.storyMeta).text = "${TimeFormat.ago(story.createdAt)} · $audience"
+        val music = if (story.audioTitle.isBlank()) "" else " · ♪ ${story.audioTitle}"
+        findViewById<TextView>(R.id.storyMeta).text = "${TimeFormat.ago(story.createdAt)} · $audience$music"
         if (story.ownerId != me) {
             Stories.views.child(story.ownerId).child(story.id).child(me).setValue(mapOf(".sv" to "timestamp"))
         }

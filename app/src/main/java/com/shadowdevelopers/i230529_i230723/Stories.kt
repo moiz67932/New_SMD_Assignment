@@ -11,7 +11,14 @@ data class Story(
     val label: String,
     val audience: String,
     val createdAt: Long,
-    val expiresAt: Long
+    val expiresAt: Long,
+    /** Boomerang: a short clip that loops for the whole story time. */
+    val loop: Boolean = false,
+    /** Music chosen in the editor (a small audio clip saved in media/{id}) and its name. */
+    val audioRef: String = "",
+    val audioTitle: String = "",
+    /** Friends tagged in the story. */
+    val tags: List<String> = emptyList()
 )
 
 /**
@@ -41,7 +48,11 @@ object Stories {
         label = snapshot.child("label").getValue(String::class.java).orEmpty(),
         audience = snapshot.child("audience").getValue(String::class.java) ?: PUBLIC,
         createdAt = snapshot.child("createdAt").getValue(Long::class.java) ?: 0L,
-        expiresAt = snapshot.child("expiresAt").getValue(Long::class.java) ?: 0L
+        expiresAt = snapshot.child("expiresAt").getValue(Long::class.java) ?: 0L,
+        loop = snapshot.child("loop").getValue(Boolean::class.java) == true,
+        audioRef = snapshot.child("audioRef").getValue(String::class.java).orEmpty(),
+        audioTitle = snapshot.child("audioTitle").getValue(String::class.java).orEmpty(),
+        tags = snapshot.child("tags").children.mapNotNull { it.getValue(String::class.java) }
     )
 
     /** Active (not expired) stories under one audience node, oldest first. */

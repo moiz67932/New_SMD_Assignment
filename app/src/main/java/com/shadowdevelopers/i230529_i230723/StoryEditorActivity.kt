@@ -19,11 +19,20 @@ import com.google.firebase.auth.FirebaseAuth
  * The media is uploaded, then stories/{me}/{public|closeFriends}/{storyId} is written with expiresAt = now + 24 h.
  */
 class StoryEditorActivity : AppCompatActivity() {
+    companion object {
+        private const val REQUEST_AUDIO = 819
+    }
+
     private val me by lazy { FirebaseAuth.getInstance().currentUser?.uid.orEmpty() }
     private var mediaUri: Uri? = null
     private var mediaType = MediaUploader.IMAGE
     private var audience = Stories.PUBLIC
     private var sharing = false
+    private var boomerang = false
+    private var effect = Effects.NORMAL
+    private var audioUri: Uri? = null
+    private var audioTitle = ""
+    private val tagged = linkedSetOf<String>()
     private lateinit var label: EditText
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -32,6 +41,7 @@ class StoryEditorActivity : AppCompatActivity() {
         label = findViewById(R.id.storyLabelInput)
         mediaUri = intent.getStringExtra("media_uri")?.let(Uri::parse)
         mediaType = intent.getStringExtra("media_type") ?: MediaUploader.IMAGE
+        boomerang = intent.getBooleanExtra("boomerang", false)
         findViewById<View>(R.id.backButton).setOnClickListener { finish() }
         if (mediaUri == null || me.isBlank()) {
             Toast.makeText(this, "Choose or capture a photo or video first", Toast.LENGTH_SHORT).show()
@@ -45,9 +55,15 @@ class StoryEditorActivity : AppCompatActivity() {
             label.requestFocus()
             (getSystemService(INPUT_METHOD_SERVICE) as InputMethodManager).showSoftInput(label, InputMethodManager.SHOW_IMPLICIT)
         }
-        listOf(R.id.storyToolTag, R.id.storyToolSticker, R.id.storyToolMusic, R.id.storyToolEffects).forEach { id ->
-            findViewById<View>(id).setOnClickListener { Toast.makeText(this, "Not part of this version; use the label (Aa)", Toast.LENGTH_SHORT).show() }
+        findViewById<View>(R.id.storyToolTag).setOnClickListener { chooseTags() }
+        findViewById<View>(R.id.storyToolSticker).setOnClickListener {
+            EmojiPicker.show(this) { emoji ->
+                label.setText(label.text.toString() + emoji)
+                label.setSelection(label.text.length)
+            }
         }
+        findViewById<View>(R.id.storyToolMusic).setOnClickListener { chooseMusic() }
+        findViewById<View>(R.id.storyToolEffects).setOnClickListener { chooseEffect() }
         findViewById<View>(R.id.shareStoryButton).setOnClickListener { selectAudience(Stories.PUBLIC) }
         findViewById<View>(R.id.shareCloseFriendsButton).apply {
             // First tap selects Close friends; tapping it again (or a long press) opens the list.
@@ -93,24 +109,146 @@ class StoryEditorActivity : AppCompatActivity() {
         }
     }
 
+    // ----- Tools: tag a friend, music, effects -----
+
+    /** Tag: choose friends; their names are added to the label and they are notified when the story is shared. */
+    private fun chooseTags() {
+        FirebaseData.friends.child(me).get().addOnSuccessListener { snapshot ->
+            val friends = snapshot.children.filter { it.getValue(Boolean::class.java) == true }.mapNotNull { it.key }
+            if (friends.isEmpty()) {
+                Toast.makeText(this, "Add friends first to tag them", Toast.LENGTH_SHORT).show()
+                return@addOnSuccessListener
+            }
+            val names = arrayOfNulls<String>(friends.size)
+            var left = friends.size
+            friends.forEachIndexed { index, uid ->
+                ProfileCache.get(uid) { profile ->
+                    names[index] = profile.name
+                    left--
+                    if (left == 0 && !isFinishing) showTagDialog(friends, names.map { it.orEmpty() })
+                }
+            }
+        }.addOnFailureListener { Toast.makeText(this, Forms.message(it, "Could not load your friends"), Toast.LENGTH_LONG).show() }
+    }
+
+    private fun showTagDialog(friends: List<String>, names: List<String>) {
+        val checked = BooleanArray(friends.size) { friends[it] in tagged }
+        androidx.appcompat.app.AlertDialog.Builder(this).setTitle("Tag friends")
+            .setMultiChoiceItems(names.toTypedArray(), checked) { _, which, isChecked -> checked[which] = isChecked }
+            .setPositiveButton("Done") { _, _ ->
+                friends.forEachIndexed { index, uid ->
+                    if (checked[index] && tagged.add(uid)) label.setText((label.text.toString() + " @" + names[index]).trim())
+                    if (!checked[index]) tagged.remove(uid)
+                }
+                label.setSelection(label.text.length)
+                markTool(R.id.storyToolTag, tagged.isNotEmpty())
+            }
+            .setNegativeButton("Cancel", null).show()
+    }
+
+    /** Music: pick a short audio file (up to 2 MB) from the phone; it plays while the story is watched. */
+    private fun chooseMusic() {
+        val options = if (audioUri == null) arrayOf("Choose a song from your phone") else arrayOf("Change music", "Remove music")
+        androidx.appcompat.app.AlertDialog.Builder(this).setTitle(if (audioUri == null) "Add music" else "♪ $audioTitle")
+            .setItems(options) { _, which ->
+                if (audioUri != null && which == 1) {
+                    audioUri = null
+                    audioTitle = ""
+                    markTool(R.id.storyToolMusic, false)
+                } else {
+                    ExternalLaunch.mark()
+                    startActivityForResult(Intent(Intent.ACTION_GET_CONTENT).setType("audio/*"), REQUEST_AUDIO)
+                }
+            }.show()
+    }
+
+    override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
+        super.onActivityResult(requestCode, resultCode, data)
+        val uri = data?.data ?: return
+        if (requestCode != REQUEST_AUDIO || resultCode != RESULT_OK) return
+        var name = "Music"
+        var size = -1L
+        contentResolver.query(uri, arrayOf(android.provider.OpenableColumns.DISPLAY_NAME, android.provider.OpenableColumns.SIZE), null, null, null)?.use { cursor ->
+            if (cursor.moveToFirst()) {
+                name = cursor.getString(0)?.substringBeforeLast('.') ?: name
+                if (!cursor.isNull(1)) size = cursor.getLong(1)
+            }
+        }
+        if (size > 2L * 1024 * 1024) {
+            Toast.makeText(this, "That song is too big (max 2 MB). Choose a shorter clip.", Toast.LENGTH_LONG).show()
+            return
+        }
+        audioUri = uri
+        audioTitle = name.take(40)
+        markTool(R.id.storyToolMusic, true)
+        Toast.makeText(this, "♪ $audioTitle added", Toast.LENGTH_SHORT).show()
+    }
+
+    /** Effects: a filter on the picture (shown now, saved into the photo when shared). */
+    private fun chooseEffect() {
+        if (mediaType != MediaUploader.IMAGE) {
+            Toast.makeText(this, "Filters are for photos. Your video stays as recorded.", Toast.LENGTH_SHORT).show()
+            return
+        }
+        androidx.appcompat.app.AlertDialog.Builder(this).setTitle("Filter")
+            .setItems(Effects.NAMES.toTypedArray()) { _, which ->
+                effect = Effects.NAMES[which]
+                findViewById<ImageView>(R.id.storyPreview).colorFilter = Effects.colorFilter(effect)
+                markTool(R.id.storyToolEffects, effect != Effects.NORMAL)
+            }.show()
+    }
+
+    /** A tool button turns white when it has something applied. */
+    private fun markTool(id: Int, on: Boolean) {
+        findViewById<ImageView>(id).apply {
+            setBackgroundResource(if (on) R.drawable.circle_white else R.drawable.circle_dark)
+            setColorFilter(if (on) android.graphics.Color.BLACK else android.graphics.Color.WHITE)
+        }
+    }
+
+    // ----- Sharing: filter -> music -> picture/video -> story -----
+
     private fun share() {
-        val uri = mediaUri ?: return
+        val source = mediaUri ?: return
         if (sharing) return
         setSharing(true)
+        if (mediaType == MediaUploader.IMAGE && effect != Effects.NORMAL) {
+            findViewById<TextView>(R.id.storyUploadStatus).text = "Applying filter…"
+            Thread {
+                val baked = Effects.bake(applicationContext, source, effect, cacheDir)
+                runOnUiThread { uploadAudioThen(baked?.let { Uri.fromFile(it) } ?: source) }
+            }.start()
+        } else uploadAudioThen(source)
+    }
+
+    private fun uploadAudioThen(picture: Uri) {
         val status = findViewById<TextView>(R.id.storyUploadStatus)
-        MediaUploader.upload(this, uri, mediaType,
+        val music = audioUri
+        if (music == null) {
+            uploadMedia(picture, "")
+            return
+        }
+        MediaUploader.upload(this, music, MediaUploader.AUDIO,
+            onProgress = { status.text = "Saving music $it%" },
+            onSuccess = { audioRef -> uploadMedia(picture, audioRef) },
+            onError = { message -> setSharing(false); Toast.makeText(this, message, Toast.LENGTH_LONG).show() })
+    }
+
+    private fun uploadMedia(picture: Uri, audioRef: String) {
+        val status = findViewById<TextView>(R.id.storyUploadStatus)
+        MediaUploader.upload(this, picture, mediaType,
             onProgress = { status.text = "Uploading $it%" },
-            onSuccess = { ref -> writeStory(ref) },
+            onSuccess = { ref -> writeStory(ref, audioRef) },
             onError = { message ->
                 setSharing(false)
                 Toast.makeText(this, message, Toast.LENGTH_LONG).show()
             })
     }
 
-    private fun writeStory(mediaRef: String) {
+    private fun writeStory(mediaRef: String, audioRef: String) {
         val node = Stories.stories.child(me).child(audience)
         val storyId = node.push().key ?: return setSharing(false)
-        val story = mapOf(
+        val story = mutableMapOf<String, Any>(
             "mediaRef" to mediaRef,
             "type" to mediaType,
             "label" to label.text.toString().trim().take(80),
@@ -118,8 +256,15 @@ class StoryEditorActivity : AppCompatActivity() {
             "createdAt" to mapOf(".sv" to "timestamp"),
             "expiresAt" to FirebaseData.now() + Stories.LIFETIME_MS
         )
+        if (boomerang) story["loop"] = true
+        if (audioRef.isNotBlank()) {
+            story["audioRef"] = audioRef
+            story["audioTitle"] = audioTitle
+        }
+        if (tagged.isNotEmpty()) story["tags"] = tagged.toList()
         node.child(storyId).setValue(story)
             .addOnSuccessListener {
+                notifyTagged()
                 Toast.makeText(this, if (audience == Stories.PUBLIC) "Shared to your story" else "Shared to Close friends", Toast.LENGTH_SHORT).show()
                 // Back to Home (clears Camera and this editor from the back stack).
                 startActivity(Intent(this, HomeActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP))
@@ -129,6 +274,17 @@ class StoryEditorActivity : AppCompatActivity() {
                 setSharing(false)
                 Toast.makeText(this, it.localizedMessage ?: "Could not share the story", Toast.LENGTH_LONG).show()
             }
+    }
+
+    /** Tagged friends get a notification. */
+    private fun notifyTagged() {
+        if (tagged.isEmpty()) return
+        val updates = mutableMapOf<String, Any>()
+        tagged.forEach { friend ->
+            val id = FirebaseData.database.getReference("notifications").child(friend).push().key ?: return@forEach
+            updates["notifications/$friend/$id"] = mapOf("senderId" to me, "type" to "tag", "body" to "tagged you in a story", "createdAt" to mapOf(".sv" to "timestamp"), "read" to false)
+        }
+        FirebaseData.database.reference.updateChildren(updates)
     }
 
     private fun setSharing(active: Boolean) {

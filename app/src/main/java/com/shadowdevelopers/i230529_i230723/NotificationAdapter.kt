@@ -74,6 +74,9 @@ class NotificationAdapter(
                 "screenshot" -> " took a screenshot of your chat."
                 "call" -> " ${item.body}"
                 "reaction" -> " reacted to your post."
+                "live" -> " is live now. Tap to watch."
+                "tag" -> " ${item.body.ifBlank { "tagged you" }}."
+                "event" -> " ${item.body}"
                 "comment" -> " commented on your post: “${item.body}”"
                 "reply" -> " replied to your comment: “${item.body}”"
                 else -> " ${item.body.trimEnd('.')}."
@@ -90,6 +93,9 @@ class NotificationAdapter(
             "screenshot" -> R.drawable.ic_camera to R.drawable.circle_red
             "call" -> R.drawable.ic_phone to R.drawable.circle_green
             "reaction" -> R.drawable.ic_thumb_up to R.drawable.circle_red
+            "live" -> R.drawable.ic_video to R.drawable.circle_red
+            "tag" -> R.drawable.ic_tag to R.drawable.circle_teal_mid
+            "event" -> R.drawable.ic_calendar to R.drawable.circle_purple
             else -> R.drawable.ic_comment to R.drawable.circle_green
         }
     }

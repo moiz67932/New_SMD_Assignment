@@ -133,6 +133,10 @@ class NotificationsActivity : AppCompatActivity() {
         markRead(item)
         when (item.type) {
             "message", "screenshot", "call" -> startActivity(Intent(this, ChatActivity::class.java).putExtra("person_uid", item.senderId).putExtra("person_name", name))
+            "live" -> startActivity(Intent(this, LiveActivity::class.java).putExtra("host_uid", item.senderId))
+            "tag", "event" ->
+                if (item.postId.isNotBlank()) startActivity(Intent(this, CommentsActivity::class.java).putExtra("post_id", item.postId))
+                else startActivity(Intent(this, OtherProfileActivity::class.java).putExtra("person_uid", item.senderId))
             "reaction", "comment", "reply" ->
                 if (item.postId.isNotBlank()) startActivity(Intent(this, CommentsActivity::class.java).putExtra("post_id", item.postId))
                 else startActivity(Intent(this, OtherProfileActivity::class.java).putExtra("person_uid", item.senderId))

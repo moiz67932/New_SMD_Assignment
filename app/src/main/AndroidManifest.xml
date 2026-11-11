@@ -24,6 +24,12 @@
     <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" android:maxSdkVersion="32" />
     <uses-feature android:name="android.hardware.camera" android:required="false" />
 
+    <!-- Android 11+ hides other apps unless listed: needed to find the phone's camera app. -->
+    <queries>
+        <intent><action android:name="android.media.action.IMAGE_CAPTURE" /></intent>
+        <intent><action android:name="android.media.action.VIDEO_CAPTURE" /></intent>
+    </queries>
+
     <application
         android:name=".KinnectApplication"
         android:allowBackup="true"
@@ -55,6 +61,9 @@
         <activity android:name=".SharePostActivity" android:exported="false" />
         <activity android:name=".MarketplaceActivity" android:exported="false" />
         <activity android:name=".VoiceCallActivity" android:exported="false" android:launchMode="singleTop" />
+        <activity android:name=".LiveActivity" android:exported="false" />
+        <activity android:name=".SimpleListActivity" android:exported="false" />
+        <activity android:name=".GroupChatActivity" android:exported="false" android:windowSoftInputMode="adjustResize" />
         <!-- Ringing screen: shown over the lock screen, opened by the call listener or a full-screen notification. -->
         <activity
             android:name=".IncomingCallActivity"

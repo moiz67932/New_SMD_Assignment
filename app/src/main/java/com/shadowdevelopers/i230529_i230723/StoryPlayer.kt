@@ -41,6 +41,8 @@ class StoryPlayer(
     private var running = false
     private var holding = false
     private var released = false
+    /** Music of the story on screen (null when it has none). */
+    private var audio: android.media.MediaPlayer? = null
 
     private val tick = object : Runnable {
         override fun run() {
@@ -115,22 +117,35 @@ class StoryPlayer(
         label.text = story.label
         label.visibility = if (story.label.isBlank()) View.GONE else View.VISIBLE
         video.stopPlayback()
+        stopAudio()
+        if (story.audioRef.isNotBlank()) playAudio(story, position)
         if (story.type == MediaUploader.VIDEO) {
             running = false
             image.setImageDrawable(null)
             video.visibility = View.VISIBLE
-            video.setVideoURI(Uri.parse(story.mediaRef))
-            video.setOnPreparedListener { player ->
-                durationMs = player.duration.toLong().coerceIn(1_000L, 31_000L)
-                running = true
-                if (!holding) player.start()
+            MediaLoader.videoUri(activity, story.mediaRef) { uri ->
+                if (released || index != position) return@videoUri // moved on while it was loading
+                if (uri == null) { durationMs = IMAGE_MS; running = true; return@videoUri }
+                video.setVideoURI(uri)
+                video.setOnPreparedListener { player ->
+                    // A boomerang loops for the usual 5 s; other videos play to the end.
+                    player.isLooping = story.loop
+                    durationMs = if (story.loop) IMAGE_MS else player.duration.toLong().coerceIn(1_000L, 31_000L)
+                    running = true
+                    if (!holding) player.start()
+                }
+                video.setOnErrorListener { _, _, _ -> durationMs = IMAGE_MS; running = true; true }
             }
-            video.setOnErrorListener { _, _, _ -> durationMs = IMAGE_MS; running = true; true }
         } else {
             video.visibility = View.GONE
             durationMs = IMAGE_MS
             running = true
-            Glide.with(activity).load(story.mediaRef).error(R.drawable.media_error).centerCrop().into(image)
+            image.setImageDrawable(null)
+            MediaLoader.resolveModel(story.mediaRef) { model ->
+                if (released || index != position || activity.isDestroyed) return@resolveModel
+                if (model == null) image.setImageResource(R.drawable.media_error)
+                else Glide.with(activity).load(model).error(R.drawable.media_error).centerCrop().into(image)
+            }
         }
         onShow(story, position)
     }
@@ -145,8 +160,28 @@ class StoryPlayer(
 
     fun previous() = show((index - 1).coerceAtLeast(0))
 
+    private fun playAudio(story: Story, position: Int) {
+        MediaLoader.audioUri(activity, story.audioRef) { uri ->
+            if (released || index != position || uri == null) return@audioUri
+            runCatching {
+                audio = android.media.MediaPlayer().apply {
+                    setDataSource(activity, uri)
+                    isLooping = true
+                    setOnPreparedListener { player -> if (!holding && !released && index == position) player.start() }
+                    prepareAsync()
+                }
+            }
+        }
+    }
+
+    private fun stopAudio() {
+        runCatching { audio?.release() }
+        audio = null
+    }
+
     fun setHolding(value: Boolean) {
         holding = value
+        runCatching { audio?.let { if (value) it.pause() else it.start() } }
         if (video.visibility == View.VISIBLE) {
             if (value) video.pause() else if (running) video.start()
         }
@@ -156,6 +191,7 @@ class StoryPlayer(
 
     fun release() {
         released = true
+        stopAudio()
         handler.removeCallbacks(tick)
         video.stopPlayback()
     }

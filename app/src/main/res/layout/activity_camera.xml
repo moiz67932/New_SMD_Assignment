@@ -12,13 +12,18 @@
         android:layout_margin="8dp"
         android:layout_weight="1">
 
-        <ImageView
+        <!-- Live camera picture (CameraX). -->
+        <androidx.camera.view.PreviewView
             android:id="@+id/cameraPreview"
             android:layout_width="match_parent"
             android:layout_height="match_parent"
-            android:background="@drawable/rounded_dark"
-            android:contentDescription="Camera"
-            android:scaleType="centerCrop" />
+            android:background="@drawable/rounded_dark" />
+
+        <!-- Grid lines are drawn into this by CameraActivity when turned on in the settings. -->
+        <FrameLayout
+            android:id="@+id/cameraOverlay"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent" />
 
         <TextView
             android:id="@+id/cameraHint"
@@ -34,15 +39,41 @@
 
         <ImageView
             android:id="@+id/cameraSettingsButton"
-            android:alpha="0.45"
             android:layout_width="48dp"
             android:layout_height="48dp"
             android:layout_margin="14dp"
             android:background="@drawable/circle_dark"
-            android:contentDescription="Flash"
+            android:contentDescription="Camera settings"
             android:padding="11dp"
-            android:src="@drawable/ic_flash"
+            android:src="@drawable/ic_settings"
             android:tint="@color/white" />
+
+        <TextView
+            android:id="@+id/cameraRecordBadge"
+            style="@style/Heading"
+            android:layout_width="wrap_content"
+            android:layout_height="34dp"
+            android:layout_centerHorizontal="true"
+            android:layout_marginTop="20dp"
+            android:background="@drawable/rounded_red"
+            android:gravity="center"
+            android:paddingHorizontal="14dp"
+            android:text="● REC 0:00"
+            android:textColor="@color/white"
+            android:textSize="13sp"
+            android:visibility="gone" />
+
+        <TextView
+            android:id="@+id/cameraCountdown"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_centerInParent="true"
+            android:shadowColor="#80000000"
+            android:shadowRadius="8"
+            android:textColor="@color/white"
+            android:textSize="96sp"
+            android:textStyle="bold"
+            android:visibility="gone" />
 
         <ImageView
             android:id="@+id/backButton"
@@ -74,7 +105,6 @@
                 android:tint="@color/white" />
 
             <ImageView
-                android:alpha="0.45"
                 android:id="@+id/cameraFlashButton"
                 android:layout_width="46dp"
                 android:layout_height="46dp"
@@ -93,6 +123,7 @@
                 android:background="@drawable/circle_soft">
 
                 <View
+                    android:id="@+id/shutterInner"
                     android:layout_width="66dp"
                     android:layout_height="66dp"
                     android:layout_centerInParent="true"
@@ -108,7 +139,6 @@
                 android:padding="10dp"
                 android:src="@drawable/ic_rotate"
                 android:id="@+id/cameraSwitchButton"
-                android:alpha="0.45"
                 android:tint="@color/white" />
 
             <ImageView
@@ -120,10 +150,56 @@
                 android:padding="10dp"
                 android:src="@drawable/ic_smile"
                 android:id="@+id/cameraEffectsButton"
-                android:alpha="0.45"
                 android:tint="@color/white" />
 
         </LinearLayout>
+
+        <!-- TEXT mode: a story made only of words on a colour. -->
+        <RelativeLayout
+            android:id="@+id/textComposer"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:background="@color/primary"
+            android:visibility="gone">
+
+            <EditText
+                android:id="@+id/textComposerInput"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_centerInParent="true"
+                android:background="@null"
+                android:gravity="center"
+                android:hint="Type something"
+                android:imeOptions="actionDone"
+                android:inputType="textCapSentences|textMultiLine"
+                android:maxLength="180"
+                android:paddingHorizontal="28dp"
+                android:textColor="@color/white"
+                android:textColorHint="#99FFFFFF"
+                android:textSize="30sp"
+                android:textStyle="bold" />
+
+            <LinearLayout
+                android:id="@+id/textComposerColors"
+                android:layout_width="match_parent"
+                android:layout_height="52dp"
+                android:layout_above="@id/textComposerNext"
+                android:layout_marginBottom="12dp"
+                android:gravity="center" />
+
+            <Button
+                android:id="@+id/textComposerNext"
+                style="@style/TealButton"
+                android:layout_width="match_parent"
+                android:layout_height="52dp"
+                android:layout_alignParentBottom="true"
+                android:layout_marginHorizontal="20dp"
+                android:layout_marginBottom="20dp"
+                android:background="@drawable/rounded_white"
+                android:text="Next"
+                android:textColor="@color/primary" />
+
+        </RelativeLayout>
 
     </RelativeLayout>
 

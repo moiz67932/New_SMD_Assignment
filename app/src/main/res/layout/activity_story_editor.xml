@@ -44,7 +44,6 @@
 
         <ImageView
             android:id="@+id/storyToolTag"
-            android:alpha="0.45"
             android:layout_width="42dp"
             android:layout_height="42dp"
             android:background="@drawable/circle_dark"
@@ -66,7 +65,6 @@
 
         <ImageView
             android:id="@+id/storyToolSticker"
-            android:alpha="0.45"
             android:layout_width="42dp"
             android:layout_height="42dp"
             android:layout_marginStart="6dp"
@@ -78,7 +76,6 @@
 
         <ImageView
             android:id="@+id/storyToolMusic"
-            android:alpha="0.45"
             android:layout_width="42dp"
             android:layout_height="42dp"
             android:layout_marginStart="6dp"
@@ -90,7 +87,6 @@
 
         <ImageView
             android:id="@+id/storyToolEffects"
-            android:alpha="0.45"
             android:layout_width="42dp"
             android:layout_height="42dp"
             android:layout_marginStart="6dp"

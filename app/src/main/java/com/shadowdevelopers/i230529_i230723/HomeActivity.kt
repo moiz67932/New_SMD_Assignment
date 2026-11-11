@@ -40,6 +40,9 @@ class HomeActivity : AppCompatActivity() {
     private val storiesByOwner = mutableMapOf<String, MutableMap<String, List<Story>>>()
     private val seenStories = mutableSetOf<String>()
     private val seenQueries = mutableMapOf<String, Pair<Query, ValueEventListener>>()
+    /** Friends who are live now: lives/{uid} exists while someone is broadcasting. */
+    private val liveQueries = mutableMapOf<String, Pair<Query, ValueEventListener>>()
+    private val liveNow = linkedSetOf<String>()
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -80,7 +83,8 @@ class HomeActivity : AppCompatActivity() {
         storyAdapter = StoryRowAdapter(
             me = me,
             onCreate = { startActivity(Intent(this, CameraActivity::class.java)) },
-            onOpen = ::openStories
+            onOpen = ::openStories,
+            onLive = { host -> startActivity(Intent(this, LiveActivity::class.java).putExtra("host_uid", host)) }
         )
         findViewById<RecyclerView>(R.id.storiesRecyclerView).apply {
             layoutManager = LinearLayoutManager(this@HomeActivity, LinearLayoutManager.HORIZONTAL, false)
@@ -119,9 +123,11 @@ class HomeActivity : AppCompatActivity() {
         listeners.removeAll()
         authorQueries.values.forEach { (query, listener) -> query.removeEventListener(listener) }
         authorQueries.clear()
-        (storyNodes.values + seenQueries.values).forEach { (query, listener) -> query.removeEventListener(listener) }
+        (storyNodes.values + seenQueries.values + liveQueries.values).forEach { (query, listener) -> query.removeEventListener(listener) }
         storyNodes.clear()
         seenQueries.clear()
+        liveQueries.clear()
+        liveNow.clear()
         super.onStop()
     }
 
@@ -156,6 +162,7 @@ class HomeActivity : AppCompatActivity() {
      * A close-friends node I am not allowed to read just fails quietly (onCancelled) and is skipped.
      */
     private fun setStoryOwners(owners: List<String>) {
+        watchLives(owners.filter { it != me })
         storyNodes.keys.filter { it.substringBefore('/') !in owners }.forEach { key ->
             storyNodes.remove(key)?.let { (query, listener) -> query.removeEventListener(listener) }
             storiesByOwner.remove(key.substringBefore('/'))
@@ -180,6 +187,26 @@ class HomeActivity : AppCompatActivity() {
             }
         }
         showStories()
+    }
+
+    private fun watchLives(friends: List<String>) {
+        liveQueries.keys.filter { it !in friends }.forEach { uid ->
+            liveQueries.remove(uid)?.let { (query, listener) -> query.removeEventListener(listener) }
+            liveNow.remove(uid)
+        }
+        friends.filter { it !in liveQueries }.forEach { uid ->
+            val query = FirebaseData.database.getReference("lives").child(uid)
+            val listener = object : ValueEventListener {
+                override fun onDataChange(snapshot: DataSnapshot) {
+                    if (snapshot.exists()) liveNow.add(uid) else liveNow.remove(uid)
+                    storyAdapter.setLive(liveNow.toList())
+                }
+
+                override fun onCancelled(error: DatabaseError) = Unit
+            }
+            query.addValueEventListener(listener)
+            liveQueries[uid] = query to listener
+        }
     }
 
     /** storyViews/{owner}/{storyId}/{me} exists once I have opened that story (grey ring instead of teal). */

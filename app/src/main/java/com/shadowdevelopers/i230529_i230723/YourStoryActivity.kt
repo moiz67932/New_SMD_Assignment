@@ -37,9 +37,8 @@ class YourStoryActivity : AppCompatActivity() {
         player = StoryPlayer(this, onShow = { story, _ -> watch(story) }, onFinished = { finish() })
         findViewById<View>(R.id.yourCreateButton).setOnClickListener { startActivity(Intent(this, CameraActivity::class.java)) }
         findViewById<View>(R.id.yourSeenBy).setOnClickListener { showViewers() }
-        listOf(R.id.yourHighlightButton, R.id.yourSendButton).forEach { id ->
-            findViewById<View>(id).setOnClickListener { Toast.makeText(this, "Not part of this version", Toast.LENGTH_SHORT).show() }
-        }
+        findViewById<View>(R.id.yourHighlightButton).setOnClickListener { highlight() }
+        findViewById<View>(R.id.yourSendButton).setOnClickListener { send() }
         findViewById<View>(R.id.yourMoreButton).setOnClickListener { anchor ->
             val story = player.current() ?: return@setOnClickListener
             player.setHolding(true)
@@ -108,7 +107,8 @@ class YourStoryActivity : AppCompatActivity() {
     /** Live viewers and Love reactions for the story on screen. */
     private fun watch(story: Story) {
         val audience = if (story.audience == Stories.CLOSE_FRIENDS) "Close friends" else "Public"
-        findViewById<TextView>(R.id.storyMeta).text = "${TimeFormat.ago(story.createdAt)} · $audience"
+        val music = if (story.audioTitle.isBlank()) "" else " · ♪ ${story.audioTitle}"
+        findViewById<TextView>(R.id.storyMeta).text = "${TimeFormat.ago(story.createdAt)} · $audience$music"
         clearStoryListeners()
         val viewsQuery = Stories.views.child(me).child(story.id)
         val viewsListener = object : ValueEventListener {
@@ -172,6 +172,36 @@ class YourStoryActivity : AppCompatActivity() {
                 }
             }
         }
+    }
+
+    /**
+     * Highlight keeps this story on my profile after the 24 hours are over:
+     * highlights/{me}/{storyId} is a copy without an expiry (shown in the Photos / Videos tabs of Profile).
+     */
+    private fun highlight() {
+        val story = player.current() ?: return
+        val copy = mutableMapOf<String, Any>(
+            "mediaRef" to story.mediaRef, "type" to story.type, "label" to story.label,
+            "audience" to story.audience, "createdAt" to story.createdAt, "savedAt" to mapOf(".sv" to "timestamp")
+        )
+        if (story.loop) copy["loop"] = true
+        if (story.audioRef.isNotBlank()) { copy["audioRef"] = story.audioRef; copy["audioTitle"] = story.audioTitle }
+        FirebaseData.database.getReference("highlights").child(me).child(story.id).setValue(copy)
+            .addOnSuccessListener { Toast.makeText(this, "Added to your highlights", Toast.LENGTH_SHORT).show() }
+            .addOnFailureListener { Toast.makeText(this, Forms.message(it, "Could not save the highlight"), Toast.LENGTH_LONG).show() }
+    }
+
+    /** Send: shares this story with a friend as a chat message (photo or video). */
+    private fun send() {
+        val story = player.current() ?: return
+        player.setHolding(true)
+        FriendPicker.single(this, "Send story to…") { friend, name ->
+            val isVideo = story.type == MediaUploader.VIDEO
+            ChatSender.send(this, me, friend, type = if (isVideo) "video" else "image", text = "Shared a story${if (story.label.isBlank()) "" else ": ${story.label}"}",
+                preview = if (isVideo) "Video" else "Photo", fields = mapOf((if (isVideo) "videoRef" else "imageRef") to story.mediaRef),
+                onSent = { Toast.makeText(this, "Sent to $name", Toast.LENGTH_SHORT).show() })
+        }
+        player.setHolding(false)
     }
 
     private fun confirmDelete(story: Story) {
