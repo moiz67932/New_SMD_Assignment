@@ -90,7 +90,7 @@ More detail: `docs/CODE_GUIDE.md` (how each feature works and viva questions), `
 - Calls have no foreground service: audio may stop if the app stays in the background for a long time during a call.
   On Android 14+ the full-screen ringing screen needs the "full-screen notifications" permission; otherwise a heads-up notification is shown.
 - Screenshot detection is reliable on Android 14+ (system API). On older versions it is best effort (it watches new images named "screenshot") and needs gallery permission.
-- Pushes only arrive while `fcm-server` is running.
+- Messages, calls and other alerts reach the phone while the app is closed through a small foreground service (a quiet "Kinnect is running" notification), with no server. On phones that kill background apps (vivo, Xiaomi, Oppo) allow Kinnect to run in the background / auto-start and set battery to "Unrestricted". `fcm-server` is optional: it adds FCM pushes that also wake the app after a reboot or after the system stops it.
 - Posts are readable by every signed-in user at the database level (the feed shows only friends); see `docs/CODE_GUIDE.md`.
 - Photos, videos and voice messages live in the Realtime Database as base64 (`media/{id}`), so clips are limited (video 3 MB, audio 2 MB). A production app would use object storage.
 - Live video uses Agora in broadcast mode (same App ID as calls, Testing mode). It was not load-tested.

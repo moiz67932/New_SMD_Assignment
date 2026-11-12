@@ -52,6 +52,25 @@ object FirebaseNotifications {
     fun canNotify(context: Context) =
         Build.VERSION.SDK_INT < 33 || ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) == PackageManager.PERMISSION_GRANTED
 
+    /** Friend requests, reactions, comments...: tapping opens the Notifications screen. */
+    fun showActivity(context: Context, title: String, body: String, key: String) {
+        if (!canNotify(context)) return
+        createChannels(context)
+        val intent = Intent(context, NotificationsActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP)
+        val pending = PendingIntent.getActivity(context, key.hashCode(), intent, PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
+        val notification = NotificationCompat.Builder(context, CHANNEL_MESSAGES)
+            .setSmallIcon(R.drawable.ic_notifications)
+            .setColor(ContextCompat.getColor(context, R.color.primary))
+            .setContentTitle(title.ifBlank { "Kinnect" })
+            .setContentText(body)
+            .setStyle(NotificationCompat.BigTextStyle().bigText(body))
+            .setPriority(NotificationCompat.PRIORITY_HIGH)
+            .setAutoCancel(true)
+            .setContentIntent(pending)
+            .build()
+        NotificationManagerCompat.from(context).notify(key.hashCode(), notification)
+    }
+
     /** A message/screenshot notification; tapping it opens the chat with that person. */
     fun show(context: Context, title: String, body: String, chatId: String?, senderId: String?) {
         if (!canNotify(context)) return

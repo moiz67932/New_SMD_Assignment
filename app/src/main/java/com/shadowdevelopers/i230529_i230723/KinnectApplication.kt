@@ -37,6 +37,7 @@ class KinnectApplication : Application(), Application.ActivityLifecycleCallbacks
         if (FirebaseAuth.getInstance().currentUser != null) {
             connectPresence()
             CallManager.startListening(this) // incoming calls ring anywhere in the app while signed in
+            KinnectBackgroundService.start(this) // keeps messages and calls coming after the app is closed
         }
     }
 
@@ -95,6 +96,7 @@ class KinnectApplication : Application(), Application.ActivityLifecycleCallbacks
     fun stopUserListeners() {
         handler.removeCallbacks(markOffline)
         CallManager.stopListening()
+        KinnectBackgroundService.stop(this)
     }
 
     companion object {
