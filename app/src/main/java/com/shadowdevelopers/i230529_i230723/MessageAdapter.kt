@@ -1,6 +1,7 @@
 package com.shadowdevelopers.i230529_i230723
 
 import android.content.Intent
+import android.graphics.drawable.GradientDrawable
 import android.os.SystemClock
 import android.view.Gravity
 import android.view.LayoutInflater
@@ -49,7 +50,10 @@ sealed class ChatRow {
         val heartMine: Boolean,
         val heartOther: Boolean,
         val seen: Boolean,
-        val showTime: Boolean
+        val showTime: Boolean,
+        /** First / last bubble of a run from the same person: decides which corners are rounded and the spacing. */
+        val firstInRun: Boolean = true,
+        val lastInRun: Boolean = true
     ) : ChatRow()
 }
 
@@ -121,6 +125,31 @@ class MessageAdapter(
         private val status = view.findViewById<TextView>(R.id.messageStatus)
         private val seen = view.findViewById<TextView>(R.id.messageSeen)
 
+        private fun dp(value: Int) = (value * itemView.resources.displayMetrics.density).toInt()
+
+        /**
+         * Bubble look: 18dp corners, but the corners that touch the next/previous bubble of the same person are
+         * only 4dp so a run reads as one group. Padding is set here (the shapes carry none), spacing is larger
+         * between different people than inside a run, and a bubble never grows wider than about 75% of the screen.
+         */
+        private fun styleBubble(row: ChatRow.Message, mine: Boolean) {
+            val context = itemView.context
+            text.background = bubbleShape(context, mine, row.firstInRun, row.lastInRun)
+            text.setPadding(dp(14), dp(9), dp(14), dp(10))
+            text.setTextColor(ContextCompat.getColor(context, if (mine) R.color.white else R.color.text_primary))
+            text.textSize = 15f
+            text.setLineSpacing(0f, 1.08f)
+            text.maxWidth = (itemView.resources.displayMetrics.widthPixels * 0.74f).toInt()
+            // Gap above this bubble: small inside a run, larger when the sender changes.
+            itemView.setPadding(dp(4), if (row.firstInRun) dp(8) else dp(2), dp(4), 0)
+            // Photos and videos get rounded corners that match the bubbles.
+            image.background = GradientDrawable().apply {
+                setColor(ContextCompat.getColor(context, R.color.surface_soft))
+                cornerRadius = dp(16).toFloat()
+            }
+            image.clipToOutline = true
+        }
+
         fun bind(row: ChatRow.Message) {
             val message = row.message
             val context = itemView.context
@@ -154,8 +183,7 @@ class MessageAdapter(
             quote.text = message.replyToText
 
             text.text = message.text
-            text.setBackgroundResource(if (mine) R.drawable.rounded_teal else R.drawable.rounded_soft)
-            text.setTextColor(ContextCompat.getColor(context, if (mine) R.color.white else R.color.text_primary))
+            styleBubble(row, mine)
             val isImage = message.type == "image" && message.imageRef.isNotBlank()
             val isVideo = message.type == "video" && message.videoRef.isNotBlank()
             val isAudio = message.type == "audio" && message.audioRef.isNotBlank()
@@ -181,7 +209,8 @@ class MessageAdapter(
             audioBubble.visibility = if (isAudio) View.VISIBLE else View.GONE
             if (isAudio) {
                 val playing = AudioPlayer.playingId == message.id
-                audioBubble.setBackgroundResource(if (mine) R.drawable.rounded_teal else R.drawable.rounded_soft)
+                audioBubble.background = bubbleShape(context, mine, row.firstInRun, row.lastInRun)
+                audioBubble.setPadding(dp(10), dp(8), dp(14), dp(8))
                 audioPlay.setImageResource(if (playing) R.drawable.ic_stop else R.drawable.ic_play)
                 audioPlay.setBackgroundResource(if (mine) R.drawable.circle_white else R.drawable.circle_teal)
                 audioPlay.setColorFilter(if (mine) ContextCompat.getColor(context, R.color.primary) else android.graphics.Color.WHITE)
@@ -245,5 +274,21 @@ class MessageAdapter(
         private const val TYPE_INTRO = 0
         private const val TYPE_MESSAGE = 1
         private const val TYPE_TYPING = 2
+    }
+}
+
+/** A padding-free rounded bubble. The side next to a neighbouring bubble of the same run gets a small radius. */
+private fun bubbleShape(context: android.content.Context, mine: Boolean, firstInRun: Boolean, lastInRun: Boolean): GradientDrawable {
+    val density = context.resources.displayMetrics.density
+    val big = 18 * density
+    val small = 4 * density
+    // Order: top-left, top-right, bottom-right, bottom-left (each as x, y).
+    val topInner = if (firstInRun) big else small
+    val bottomInner = if (lastInRun) big else small
+    val radii = if (mine) floatArrayOf(big, big, topInner, topInner, bottomInner, bottomInner, big, big)
+    else floatArrayOf(topInner, topInner, big, big, big, big, bottomInner, bottomInner)
+    return GradientDrawable().apply {
+        setColor(ContextCompat.getColor(context, if (mine) R.color.primary else R.color.surface_soft))
+        cornerRadii = radii
     }
 }

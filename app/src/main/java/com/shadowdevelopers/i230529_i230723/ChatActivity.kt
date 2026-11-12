@@ -262,6 +262,7 @@ class ChatActivity : AppCompatActivity() {
             val newDay = previous == null || !sameDay(previous.timestamp, message.timestamp) || message.timestamp - previous.timestamp > 60 * 60 * 1000
             val nextBreaks = next == null || next.senderId != message.senderId || next.system || !sameDay(next.timestamp, message.timestamp) ||
                 next.timestamp - message.timestamp > 60 * 60 * 1000
+            val prevBreaks = previous == null || previous.senderId != message.senderId || previous.system || newDay
             val replyHeader = when {
                 message.replyToText.isBlank() -> ""
                 message.senderId == me -> "You replied to ${if (message.replyToSenderId == me) "yourself" else personName.substringBefore(" ")}"
@@ -276,7 +277,9 @@ class ChatActivity : AppCompatActivity() {
                 heartMine = me in reacted,
                 heartOther = otherUid in reacted,
                 seen = message.id == myLastSeen,
-                showTime = next == null
+                showTime = next == null,
+                firstInRun = prevBreaks,
+                lastInRun = nextBreaks
             ))
         }
         if (otherTyping) rows.add(ChatRow.Typing)

@@ -5,8 +5,7 @@
     android:id="@+id/messageRow"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
-    android:orientation="vertical"
-    android:paddingVertical="1dp">
+    android:orientation="vertical">
 
     <TextView
         android:id="@+id/messageDate"
@@ -94,9 +93,7 @@
                         android:layout_height="wrap_content"
                         android:background="@drawable/rounded_soft"
                         android:maxWidth="270dp"
-                        android:paddingHorizontal="14dp"
-                        android:paddingVertical="9dp"
-                        android:textSize="14sp" />
+                        android:textSize="15sp" />
 
                     <!-- A shared post: small card with the first photo, author and the start of the text. -->
                     <LinearLayout
