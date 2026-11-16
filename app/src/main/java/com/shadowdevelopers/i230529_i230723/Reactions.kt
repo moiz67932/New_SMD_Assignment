@@ -89,8 +89,9 @@ object Reactions {
                 "senderId" to me, "type" to "reaction", "body" to type, "postId" to postId,
                 "createdAt" to mapOf(".sv" to "timestamp"), "read" to false
             ))
-            updates += PushQueue.entry(authorId, me, "activity", "Kinnect", "reacted to your post")
-            FirebaseData.database.reference.updateChildren(updates)
+            FirebaseData.database.reference.updateChildren(updates).addOnSuccessListener {
+                PushQueue.send(authorId, me, "activity", "Kinnect", "reacted to your post")
+            }
         }
     }
 }

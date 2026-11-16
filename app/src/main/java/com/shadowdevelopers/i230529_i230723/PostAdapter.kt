@@ -58,7 +58,6 @@ data class FeedPost(
  */
 class PostAdapter(
     private val me: String,
-    private val onOpenPicker: (FeedPost) -> Unit,
     private val onComments: (FeedPost) -> Unit,
     private val onAuthor: (FeedPost) -> Unit,
     private val onShare: (FeedPost) -> Unit = {},
@@ -212,15 +211,48 @@ class PostAdapter(
         }
 
         private fun showReactionPicker(post: FeedPost) {
-            val options = arrayOf("Like", "Love", "Laugh", "Wow", "Sad", "Angry")
-            androidx.appcompat.app.AlertDialog.Builder(itemView.context)
-                .setTitle("React to post")
-                .setItems(options) { _, index ->
-                    val type = options[index]
-                    Reactions.react(itemView.context, post.id, post.authorId, me, type, myReaction)
+            val context = itemView.context
+            val density = itemView.resources.displayMetrics.density
+            fun dp(value: Int) = (value * density).toInt()
+            val row = android.widget.LinearLayout(context).apply {
+                orientation = android.widget.LinearLayout.HORIZONTAL
+                gravity = Gravity.CENTER
+                setPadding(dp(8), dp(10), dp(8), dp(10))
+                setBackgroundResource(R.drawable.rounded_white)
+                clipChildren = false
+            }
+            val width = minOf(dp(340), itemView.resources.displayMetrics.widthPixels - dp(24))
+            val popup = android.widget.PopupWindow(row, width, dp(76), true).apply {
+                setBackgroundDrawable(android.graphics.drawable.ColorDrawable(Color.TRANSPARENT))
+                isOutsideTouchable = true
+                elevation = dp(12).toFloat()
+            }
+            Reactions.TYPES.forEach { type ->
+                val icon = ImageView(context).apply {
+                    setImageResource(Reactions.icon(type))
+                    contentDescription = type
+                    if (android.os.Build.VERSION.SDK_INT >= 26) tooltipText = type
+                    setPadding(dp(5), dp(5), dp(5), dp(5))
+                    if (type == myReaction) {
+                        setBackgroundResource(R.drawable.circle_teal_mid)
+                        scaleX = 1.1f
+                        scaleY = 1.1f
+                    }
+                    setOnClickListener {
+                        Reactions.react(context, post.id, post.authorId, me, type, myReaction)
+                        popup.dismiss()
+                    }
                 }
-                .setNegativeButton("Cancel", null)
-                .show()
+                row.addView(icon, android.widget.LinearLayout.LayoutParams(0, dp(48), 1f))
+            }
+            val anchor = itemView.findViewById<View>(R.id.postLikeButton)
+            val location = IntArray(2)
+            anchor.getLocationInWindow(location)
+            val visible = android.graphics.Rect()
+            anchor.getWindowVisibleDisplayFrame(visible)
+            val x = location[0].coerceIn(dp(12), maxOf(dp(12), itemView.resources.displayMetrics.widthPixels - width - dp(12)))
+            val y = if (location[1] - dp(80) >= visible.top) location[1] - dp(80) else location[1] + anchor.height
+            popup.showAtLocation(anchor, Gravity.TOP or Gravity.LEFT, x, y)
         }
 
         /** A text-only post with a colour shows as a big centred card, like Create post's colour picker. */

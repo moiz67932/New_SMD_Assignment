@@ -52,7 +52,13 @@ object FriendActions {
     }
 
     private fun run(context: Context, error: String, updates: Map<String, Any?>) {
-        root.updateChildren(updates).addOnFailureListener {
+        // Push delivery is optional: older deployed rules may not yet accept activity pushes.
+        // A rejected push must never roll back the friendship operation and its in-app notification.
+        val action = updates.filterKeys { !it.startsWith("pushQueue/") }
+        val pushes = updates.filterKeys { it.startsWith("pushQueue/") }
+        root.updateChildren(action).addOnSuccessListener {
+            if (pushes.isNotEmpty()) root.updateChildren(pushes)
+        }.addOnFailureListener {
             Toast.makeText(context, it.localizedMessage ?: error, Toast.LENGTH_LONG).show()
         }
     }

@@ -66,7 +66,6 @@ class HomeActivity : AppCompatActivity() {
         feed.isNestedScrollingEnabled = false
         feedAdapter = PostAdapter(
             me = me,
-            onOpenPicker = { post -> startActivity(Intent(this, ReactionPickerActivity::class.java).putExtra("post_id", post.id)) },
             onComments = { post -> startActivity(Intent(this, CommentsActivity::class.java).putExtra("post_id", post.id)) },
             onAuthor = { post ->
                 val target = if (post.authorId == me) ProfileActivity::class.java else OtherProfileActivity::class.java
