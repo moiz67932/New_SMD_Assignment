@@ -145,7 +145,7 @@ class NotificationsActivity : AppCompatActivity() {
     }
 
     private fun open(viewId: Int, target: Class<*>) {
-        findViewById<View>(viewId).setOnClickListener { startActivity(Intent(this, target)) }
+        findViewById<View>(viewId).setOnClickListener { Nav.goTab(this, target) }
     }
 
     companion object {

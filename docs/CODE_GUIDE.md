@@ -141,3 +141,12 @@ decides what to show (me + friends) on the client. Making posts friends-only wou
 | `saved/{uid}/{postId}`, `highlights/{uid}/{storyId}` | saved posts; stories kept after 24 h | owner (highlights readable by friends) |
 | chat `video` / `audio` messages, story `loop` / `audioRef` / `tags`, post `feeling` / `location` / `event` / `tags` | extra fields on existing nodes | same rules as their parent |
 
+## Back stack (Nav.kt)
+
+- **Home is the root.** Back from Home leaves the app.
+- **Main screens replace each other.** Home, Friends, Marketplace, Notifications, Menu, Chats, Profile and Search are one flat group: `Nav.goTab` starts the new one and finishes the current one, so the stack is never more than Home + one main screen. One Back from any main screen returns to Home. Going to Home uses `CLEAR_TOP | SINGLE_TOP`, which pops everything above it.
+- **Detail screens push normally** (a chat, a profile, comments, editors): Back returns to where the user came from.
+- **No loops:** Profile -> Message uses `CLEAR_TOP` so Chat -> Profile -> Message goes back to the existing chat; a friend's friend replaces the current profile.
+- **Opened from a notification while the app was closed:** the screen is the first of its task, so Back opens Home instead of leaving the app (`Nav.installBackToHome`, installed for every screen by `KinnectApplication`).
+- Viva: "Why not `REORDER_TO_FRONT`?" It moves an old instance forward but keeps every screen visited in the history, so Back walks through all of them.
+

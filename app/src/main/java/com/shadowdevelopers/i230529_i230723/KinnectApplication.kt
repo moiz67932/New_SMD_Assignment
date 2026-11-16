@@ -118,7 +118,10 @@ class KinnectApplication : Application(), Application.ActivityLifecycleCallbacks
         }
     }
 
-    override fun onActivityCreated(activity: Activity, savedInstanceState: Bundle?) = Insets.prepare(activity)
+    override fun onActivityCreated(activity: Activity, savedInstanceState: Bundle?) {
+        Insets.prepare(activity)
+        Nav.installBackToHome(activity)
+    }
     override fun onActivityResumed(activity: Activity) = Unit
     override fun onActivityPaused(activity: Activity) = Unit
     override fun onActivitySaveInstanceState(activity: Activity, outState: Bundle) = Unit

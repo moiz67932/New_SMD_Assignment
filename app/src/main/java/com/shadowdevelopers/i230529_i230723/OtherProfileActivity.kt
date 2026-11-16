@@ -48,7 +48,9 @@ class OtherProfileActivity : AppCompatActivity() {
         findViewById<View>(R.id.friendActionButton).setOnClickListener { performFriendAction() }
         findViewById<View>(R.id.otherMoreButton).setOnClickListener { showMoreMenu(it) }
         findViewById<View>(R.id.messageButton).setOnClickListener {
-            startActivity(Intent(this, ChatActivity::class.java).putExtra("person_uid", personUid).putExtra("person_name", personName))
+            // CLEAR_TOP: if a chat is already open underneath (Chat -> Profile -> Message) go back to it instead of stacking another.
+            startActivity(Intent(this, ChatActivity::class.java).putExtra("person_uid", personUid).putExtra("person_name", personName)
+                .addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP))
         }
     }
 
@@ -110,7 +112,11 @@ class OtherProfileActivity : AppCompatActivity() {
             val friendUid = mutual.getOrNull(index)
             avatar.visibility = if (friendUid == null) View.GONE else View.VISIBLE
             if (friendUid == null) return@forEachIndexed
-            avatar.setOnClickListener { startActivity(Intent(this, OtherProfileActivity::class.java).putExtra("person_uid", friendUid)) }
+            avatar.setOnClickListener {
+                // A friend's friend replaces this profile, so a chain of profiles does not need a Back per person.
+                startActivity(Intent(this, OtherProfileActivity::class.java).putExtra("person_uid", friendUid))
+                finish()
+            }
             ProfileCache.get(friendUid) { profile ->
                 AvatarBinder.bind(avatar, profile.name, profile.photo)
                 if (index < names.size) {

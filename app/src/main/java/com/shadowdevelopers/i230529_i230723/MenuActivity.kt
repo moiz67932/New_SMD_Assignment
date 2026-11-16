@@ -22,9 +22,7 @@ class MenuActivity : AppCompatActivity() {
         }
 
         fun open(id: Int, target: Class<*>) {
-            findViewById<View>(id).setOnClickListener {
-                startActivity(Intent(this, target))
-            }
+            findViewById<View>(id).setOnClickListener { Nav.goTab(this, target) }
         }
 
         open(R.id.searchButton, SearchActivity::class.java)
