@@ -176,9 +176,9 @@ class PostAdapter(
             // Tap: Like / remove my reaction. Long-press: the reaction picker (05) with all six reactions.
             itemView.findViewById<View>(R.id.postLikeButton).apply {
                 setOnClickListener { Reactions.react(context, post.id, post.authorId, me, myReaction ?: "Like", myReaction) }
-                setOnLongClickListener { onOpenPicker(post); true }
+                setOnLongClickListener { showReactionPicker(post); true }
             }
-            itemView.findViewById<View>(R.id.postSummaryRow).setOnClickListener { onOpenPicker(post) }
+            itemView.findViewById<View>(R.id.postSummaryRow).setOnClickListener { showReactionPicker(post) }
             itemView.findViewById<View>(R.id.postCommentButton).setOnClickListener { onComments(post) }
             itemView.findViewById<View>(R.id.postShareButton).setOnClickListener { onShare(post) }
             itemView.findViewById<View>(R.id.postHideButton).apply {
@@ -209,6 +209,18 @@ class PostAdapter(
                     }.show()
                 }.addOnFailureListener { onComments(post) }
             }
+        }
+
+        private fun showReactionPicker(post: FeedPost) {
+            val options = arrayOf("Like", "Love", "Laugh", "Wow", "Sad", "Angry")
+            androidx.appcompat.app.AlertDialog.Builder(itemView.context)
+                .setTitle("React to post")
+                .setItems(options) { _, index ->
+                    val type = options[index]
+                    Reactions.react(itemView.context, post.id, post.authorId, me, type, myReaction)
+                }
+                .setNegativeButton("Cancel", null)
+                .show()
         }
 
         /** A text-only post with a colour shows as a big centred card, like Create post's colour picker. */

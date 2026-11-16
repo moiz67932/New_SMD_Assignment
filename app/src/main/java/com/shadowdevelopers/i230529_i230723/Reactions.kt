@@ -84,10 +84,13 @@ object Reactions {
         task.addOnFailureListener { Toast.makeText(context, it.localizedMessage ?: "Could not update your reaction", Toast.LENGTH_SHORT).show() }
         // Tell the author about a new reaction (not about changes or removals, and not about my own posts).
         if (current == null && authorId.isNotBlank() && authorId != me) {
-            FirebaseData.database.getReference("notifications").child(authorId).push().setValue(mapOf(
+            val id = FirebaseData.database.getReference("notifications").child(authorId).push().key ?: return
+            val updates = mutableMapOf<String, Any>("notifications/$authorId/$id" to mapOf(
                 "senderId" to me, "type" to "reaction", "body" to type, "postId" to postId,
                 "createdAt" to mapOf(".sv" to "timestamp"), "read" to false
             ))
+            updates += PushQueue.entry(authorId, me, "activity", "Kinnect", "reacted to your post")
+            FirebaseData.database.reference.updateChildren(updates)
         }
     }
 }

@@ -44,7 +44,8 @@ class VoiceCallActivity : AppCompatActivity() {
     private var finished = false
     private var historyWritten = false
     private var muted = false
-    private var speaker = true
+    // Calls start through the earpiece; a highlighted button means speakerphone is enabled.
+    private var speaker = false
     private var cameraOn = true
     private lateinit var statusText: TextView
     private lateinit var durationText: TextView
@@ -72,6 +73,7 @@ class VoiceCallActivity : AppCompatActivity() {
             runOnUiThread {
                 connectedAt = System.currentTimeMillis()
                 statusText.text = if (videoCall) "" else "Connected"
+                if (videoCall) findViewById<View>(R.id.callAvatar).visibility = View.GONE
                 handler.removeCallbacks(noAnswer)
                 handler.post(timer)
                 // The remote picture can only be attached once we know the other person's Agora uid.
@@ -136,6 +138,7 @@ class VoiceCallActivity : AppCompatActivity() {
             visibility = if (videoCall) View.VISIBLE else View.GONE
             setOnClickListener { engine?.switchCamera() }
         }
+        renderSpeakerButton()
         findViewById<ImageView>(R.id.cameraToggleButton).apply {
             if (videoCall) {
                 setImageResource(R.drawable.ic_video)
@@ -317,10 +320,14 @@ class VoiceCallActivity : AppCompatActivity() {
     private fun toggleSpeaker() {
         speaker = !speaker
         engine?.setEnableSpeakerphone(speaker)
+        renderSpeakerButton()
+    }
+
+    private fun renderSpeakerButton() {
         findViewById<ImageView>(R.id.speakerButton).apply {
             setBackgroundResource(if (speaker) R.drawable.circle_teal_mid else R.drawable.circle_white)
             setColorFilter(ContextCompat.getColor(context, if (speaker) R.color.white else R.color.primary))
-            contentDescription = if (speaker) "Speaker on" else "Speaker off"
+            contentDescription = if (speaker) "Speakerphone on" else "Earpiece on; speakerphone off"
         }
     }
 

@@ -320,7 +320,7 @@
       ".read": false,
       "$pushId": {
         ".write": "auth != null && !data.exists() && newData.child('fromUid').val() === auth.uid",
-        ".validate": "newData.hasChildren(['toUid', 'fromUid', 'type', 'title', 'body', 'createdAt']) && newData.child('toUid').isString() && newData.child('type').val().matches(/^(message|screenshot|call)$/) && newData.child('title').isString() && newData.child('title').val().length <= 80 && newData.child('body').isString() && newData.child('body').val().length <= 160"
+      ".validate": "newData.hasChildren(['toUid', 'fromUid', 'type', 'title', 'body', 'createdAt']) && newData.child('toUid').isString() && newData.child('type').val().matches(/^(message|screenshot|call|activity)$/) && newData.child('title').isString() && newData.child('title').val().length <= 80 && newData.child('body').isString() && newData.child('body').val().length <= 160"
       }
     },
     "presence": {

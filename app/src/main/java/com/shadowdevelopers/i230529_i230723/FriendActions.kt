@@ -18,7 +18,8 @@ object FriendActions {
     fun sendRequest(context: Context, me: String, other: String) = run(context, "Could not send the request", mapOf(
         "friendRequests/$other/$me" to mapOf("senderId" to me, "receiverId" to other, "createdAt" to now),
         "sentRequests/$me/$other" to now,
-        notification(other, me, "friendRequest", "sent you a friend request")
+        notification(other, me, "friendRequest", "sent you a friend request"),
+        PushQueue.entry(other, me, "activity", "Kinnect", "sent you a friend request")
     ))
 
     fun cancelRequest(context: Context, me: String, other: String) = run(context, "Could not cancel the request", mapOf(
@@ -31,7 +32,8 @@ object FriendActions {
         "friends/$other/$me" to true,
         "friendRequests/$me/$other" to null,
         "sentRequests/$other/$me" to null,
-        notification(other, me, "friendAccepted", "accepted your friend request")
+        notification(other, me, "friendAccepted", "accepted your friend request"),
+        PushQueue.entry(other, me, "activity", "Kinnect", "accepted your friend request")
     ))
 
     fun deleteIncoming(context: Context, me: String, other: String) = run(context, "Could not delete the request", mapOf(

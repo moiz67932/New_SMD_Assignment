@@ -101,13 +101,13 @@ class KinnectBackgroundService : Service() {
         val chatId = row.child("chatId").getValue(String::class.java)
         val body = row.child("body").getValue(String::class.java).orEmpty()
         if (sender.isBlank() || type == "call") return // calls ring through CallManager instead
-        if (KinnectApplication.inForeground) return // the app is open: badges and lists already show it
-        if (type == "message" && sender == ChatActivity.openChatWith) return
+        // Always post a system dropdown notification; the in-app list and badge update independently.
         ProfileCache.get(sender) { profile ->
             val name = profile.name.ifBlank { "Kinnect" }
             when (type) {
                 "message" -> FirebaseNotifications.show(context, name, body.ifBlank { "Sent you a message" }, chatId, sender)
                 "screenshot" -> FirebaseNotifications.show(context, name, "took a screenshot of your chat", chatId, sender)
+                "activity" -> FirebaseNotifications.showActivity(context, name, body.ifBlank { "New activity on Kinnect" }, row.key.orEmpty())
                 else -> FirebaseNotifications.showActivity(context, name, describe(type, body), row.key.orEmpty())
             }
         }
